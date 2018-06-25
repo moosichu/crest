@@ -12,7 +12,7 @@ public class WhirlPoolBehaviour : MonoBehaviour {
 	void Start () {
         mf = GetComponent< MeshRenderer > ();
     }
-	
+
 	// Update is called once per frame
 	void Update () {
         // mf.material.SetFloat("_Time", 10.0f);
