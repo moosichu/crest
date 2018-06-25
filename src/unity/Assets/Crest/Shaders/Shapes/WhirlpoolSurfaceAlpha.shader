@@ -115,15 +115,14 @@
 					const float frequency = 1.;
 					const float speed = 100.;
 
-					float effect = sin(
+					float effect = (sin(
 						((phase + r2) * frequency) -
 						(_Time * speed * (1.0 - r2))
-					);
+					) + 1.) / 2.;
 
-					col.rgb = effect;
+					col.rgb = 1.;
 
-					col.a *= _Alpha * (1 - r2);
-					col.rgb *= r2;
+					col.a *= _Alpha * (1 - r2) * effect;
 				}
 
 				return col;
