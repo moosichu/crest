@@ -112,12 +112,12 @@
 						phase = PI * 2.;
 					}
 
-					const float frequency = 10.;
+					const float frequency = 1.;
 					const float speed = 100.;
 
 					float effect = sin(
 						((phase + r2) * frequency) -
-						(_Time * speed)
+						(_Time * speed * (1.0 - r2))
 					);
 
 					col.rgb = effect;
