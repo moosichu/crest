@@ -4,6 +4,7 @@
 	{
 		_MainTex ("Texture", 2D) = "white" {}
 		_Alpha("Alpha Multiplier", Range(0.0, 1.0)) = 1.0
+		[Toggle] _ShowFieldTexture("Show Field Texture", float) = 0.0
 	}
 	SubShader
 	{
@@ -23,6 +24,9 @@
 			#pragma vertex vert
 			#pragma fragment frag
 			#pragma multi_compile_fog
+
+			// Whether to just display the velocity field
+			#pragma shader_feature _SHOWFIELDTEXTURE_ON
 
 			#include "UnityCG.cginc"
 			#include "../OceanLODData.cginc"
@@ -78,53 +82,53 @@
 
 			fixed4 frag (v2f i) : SV_Target
 			{
-				fixed4 col = tex2D(_MainTex, i.uv);
+				fixed4 col = fixed4(0,0,0,1);
 
 				float2 uv_from_cent = (i.uv - float2(.5, .5)) * 2.;
 				float r2 = dot(uv_from_cent, uv_from_cent);
 
+				float r       =           .1; // eye of whirlpool radius
+				const float R =            1; // whirlpool radius
+				float2 o      = float2(0, 0); // origin
+				float  s      =           .5; // whirlpool 'swirlyness'
+				float2 p      = uv_from_cent; // our current position
+				float  V      =        100; // maximum whirlpool speed
 
-				UNITY_APPLY_FOG(i.fogCoord, col);
+				float r_2 = r * r;
 
-				if(r2 > 1.) {
-					col.a = .0;
+				float2 PtO  =       o - p;    // vector from position to origin
+				float  lPtO = length(PtO);
+
+				if(lPtO >= R) {
+					col = fixed4(0,0,0,0);
+				} else if (lPtO <= r) {
+					col = fixed4(0,0,0,0);
 				} else {
-					float phase = 0;
-					float x = uv_from_cent.x;
-					float y = uv_from_cent.y;
-					const float M_PI_2 = 1.57079632679489661923;
+					float c = 1.0 - ((lPtO - r) / (R - r));
+
+					float w1 = fmod(_Time, .1);
+					float w2 = fmod(_Time + .05, .1);
+
+					// dynamically calvulate current value of velocity field
+					// (TODO: Make this a texture lookup?)
+					float2 v = V * c * normalize(
+						(s * c * normalize(float2(-PtO.y, PtO.x))) +
+						((s - 1.0) * (c - 1.0) * normalize(PtO))
+					);
+
 					const float PI = 3.14159265358979323846;
-					if(x > .0 && y > .0) {
-						phase = atan(x / y);
-					} else if(x > .0 && y == .0) {
-						phase = M_PI_2;
-					} else if (x > .0 && y < .0) {
-						phase = M_PI_2 - atan(y/x);
-					} else if (x == .0 && y < .0) {
-						phase = PI;
-					} else if (x < .0 && y < .0) {
-						phase = PI + atan(x / y);
-					} else if (x < .0 && y == .0) {
-						phase = M_PI_2 + PI;
-					} else if (x < .0 && y > .0) {
-						phase = M_PI_2 + PI - atan(y/x);
-					} else if (x == 0 && y > .0) {
-						phase = PI * 2.;
-					}
 
-					const float frequency = 1.;
-					const float speed = 100.;
-
-					float effect = (sin(
-						((phase + r2) * frequency) -
-						(_Time * speed * (1.0 - r2))
-					) + 1.) / 2.;
-
-					col.rgb = 1.;
-
-					col.a *= _Alpha * (1 - r2) * effect;
+					#if _SHOWFIELDTEXTURE_ON
+					col = fixed4(v.x, v.y, 0, 1);
+					#else
+					// Currently using cos to weight each sampling of the texture,
+					// probably not the best way to do this.
+					col += .25 * (1.0 + cos((w1 * PI * 20.0) - PI)) * tex2D(_MainTex, float2(i.uv - (v * w1 * .05)));
+					col += .25 * (1.0 + cos((w2 * PI * 20.0) - PI)) * tex2D(_MainTex, float2(i.uv - (v * w2 * .05)));
+					#endif
 				}
 
+				UNITY_APPLY_FOG(i.fogCoord, col);
 				return col;
 			}
 			ENDCG
