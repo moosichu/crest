@@ -91,7 +91,6 @@
 				fixed4 col = fixed4(0,0,0,1);
 
 				float2 uv_from_cent = (i.uv - float2(.5, .5)) * 2.;
-				float r2 = dot(uv_from_cent, uv_from_cent);
 
 				float r       =           .1; // eye of whirlpool radius
 				const float R =            1; // whirlpool radius
@@ -132,6 +131,7 @@
 					// probably not the best way to do this.
 					col += .25 * (1.0 + cos((w1 * PI * 20.0) - PI)) * tex2D(_MainTex, float2(i.uv - (v * w1 * .05)));
 					col += .25 * (1.0 + cos((w2 * PI * 20.0) - PI)) * tex2D(_MainTex, float2(i.uv - (v * w2 * .05)));
+					col.a = min(2. * col.r, 1.) - length(uv_from_cent) * length(uv_from_cent);
 					col.a = clamp(col.a, 0, 1);
 					#endif
 				}
