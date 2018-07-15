@@ -7,6 +7,7 @@
 		[Toggle] _ShowFieldTexture("Show Field Texture", float) = 0.0
 		_PhaseMul("Phase Mul", float) = 0.0
 		_Swirl("Swirl", float) = 0.5
+		_MaxSpeed("Max Speed", float) = 100
 	}
 	SubShader
 	{
@@ -51,6 +52,7 @@
 			half _Alpha;
 			float _PhaseMul;
 			float _Swirl;
+			float _MaxSpeed;
 
 			// MeshScaleLerp, FarNormalsWeight, LODIndex (debug), unused
 			uniform float4 _InstanceData;
@@ -96,7 +98,7 @@
 				float2 o      = float2(0, 0); // origin
 				float  s      =       _Swirl; // whirlpool 'swirlyness', can vary from 0 - 1
 				float2 p      = uv_from_cent; // our current position
-				float  V      =        100; // maximum whirlpool speed
+				float  V      =        _MaxSpeed; // maximum whirlpool speed
 
 				float2 PtO  =       o - p;    // vector from position to origin
 				float  lPtO = length(PtO);
