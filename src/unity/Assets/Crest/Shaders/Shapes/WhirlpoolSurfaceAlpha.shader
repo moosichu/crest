@@ -5,6 +5,8 @@
 		_MainTex ("Texture", 2D) = "white" {}
 		_Alpha("Alpha Multiplier", Range(0.0, 1.0)) = 1.0
 		[Toggle] _ShowFieldTexture("Show Field Texture", float) = 0.0
+		_PhaseMul("Phase Mul", float) = 0.0
+		_Swirl("Swirl", float) = 0.5
 	}
 	SubShader
 	{
@@ -47,6 +49,8 @@
 			sampler2D _MainTex;
 			float4 _MainTex_ST;
 			half _Alpha;
+			float _PhaseMul;
+			float _Swirl;
 
 			// MeshScaleLerp, FarNormalsWeight, LODIndex (debug), unused
 			uniform float4 _InstanceData;
@@ -90,11 +94,9 @@
 				float r       =           .1; // eye of whirlpool radius
 				const float R =            1; // whirlpool radius
 				float2 o      = float2(0, 0); // origin
-				float  s      =           .5; // whirlpool 'swirlyness'
+				float  s      =       _Swirl; // whirlpool 'swirlyness', can vary from 0 - 1
 				float2 p      = uv_from_cent; // our current position
 				float  V      =        100; // maximum whirlpool speed
-
-				float r_2 = r * r;
 
 				float2 PtO  =       o - p;    // vector from position to origin
 				float  lPtO = length(PtO);
@@ -106,8 +108,11 @@
 				} else {
 					float c = 1.0 - ((lPtO - r) / (R - r));
 
-					float w1 = fmod(_Time, .1);
-					float w2 = fmod(_Time + .05, .1);
+					float phase = _PhaseMul * length(i.uv-0.5);
+					const float half_period = .05;
+					const float period = half_period * 2;
+					float w1 = fmod(_Time + phase, period);
+					float w2 = fmod(_Time + phase + half_period, period);
 
 					// dynamically calvulate current value of velocity field
 					// (TODO: Make this a texture lookup?)
