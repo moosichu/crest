@@ -50,8 +50,11 @@
 			struct v2f
 			{
 				float2 uv : TEXCOORD0;
-				UNITY_FOG_COORDS(1)
 				float4 vertex : SV_POSITION;
+				half4 invDeterminant_lodAlpha_worldXZUndisplaced : TEXCOORD2;
+				half3 n : TEXCOORD1;
+				float3 worldPos : TEXCOORD4;
+				UNITY_FOG_COORDS(3)
 			};
 
 			uniform sampler2D _MainTex;
@@ -75,6 +78,10 @@
 
 				// move to world
 				float3 worldPos = mul(unity_ObjectToWorld, v.vertex);
+				o.worldPos = worldPos;
+				o.invDeterminant_lodAlpha_worldXZUndisplaced.x = 0; // TODO: SORT THIS OUT SO IT USES lodALPHA
+				o.invDeterminant_lodAlpha_worldXZUndisplaced.y = 0; // TODO: SORT THIS OUT SO IT USES lodALPHA
+				o.invDeterminant_lodAlpha_worldXZUndisplaced.zw = o.worldPos.xz;
 
 				// vertex snapping and lod transition
 				float lodAlpha = ComputeLodAlpha(worldPos, _InstanceData.x);
@@ -92,6 +99,7 @@
 
 				// view-projection
 				o.vertex = mul(UNITY_MATRIX_VP, float4(worldPos, 1.));
+				o.n = n;
 
 				o.uv = TRANSFORM_TEX(v.uv, _MainTex);
 				UNITY_TRANSFER_FOG(o,o.vertex);
@@ -103,7 +111,7 @@
 				return half3(unity_SHAr.w, unity_SHAg.w, unity_SHAb.w);
 			}
 
-			void ComputeFoam(half i_determinant, float2 i_worldXZUndisplaced, float2 i_worldXZ, half3 i_n, half i_shorelineFoam, float i_pixelZ, float i_sceneZ, half3 i_view, float3 i_lightDir, out half4 o_whiteFoamCol)
+			void ComputeFoam(float2 foamUV, float2 i_worldXZUndisplaced, half3 i_n, float i_pixelZ, float3 i_lightDir, out half4 o_whiteFoamCol)
 			{
 				half foamAmount = 1;
 				// Wave foam - compute foam amount from determinant
@@ -118,7 +126,7 @@
 				float2 _WindDirXZ = float2(.5, .5);
 
 				// White foam on top, with black-point fading
-				float2 foamUV = (i_worldXZUndisplaced + 0.05 * _Time * _WindDirXZ) / _FoamScale + 0.02 * i_n.xz;
+				//float2 foamUV = (i_worldXZUndisplaced + 0.05 * _Time * _WindDirXZ) / _FoamScale + 0.02 * i_n.xz;
 				half foamTexValue = tex2D(_MainTex, foamUV).r;
 				half whiteFoam = foamTexValue * (smoothstep(foamAmount + _WaveFoamFeather, foamAmount, 1. - foamTexValue)) * _FoamWhiteColor.a;
 
@@ -141,6 +149,17 @@
 				#endif // _FOAM3DLIGHTING_ON
 
 				o_whiteFoamCol.a = min(2. * whiteFoam, 1.);
+			}
+
+			float3 WorldSpaceLightDir(float3 worldPos)
+			{
+				float3 lightDir = _WorldSpaceLightPos0.xyz;
+				if (_WorldSpaceLightPos0.w > 0.)
+				{
+					// non-directional light - this is a position, not a direction
+					lightDir = normalize(lightDir - worldPos.xyz);
+				}
+				return lightDir;
 			}
 
 			fixed4 frag (v2f i) : SV_Target
@@ -186,10 +205,38 @@
 					#else
 					// Currently using cos to weight each sampling of the texture,
 					// probably not the best way to do this.
-					col += .25 * (1.0 + cos((w1 * PI * 20.0) - PI)) * tex2D(_MainTex, float2(i.uv - (v * w1 * .05)));
-					col += .25 * (1.0 + cos((w2 * PI * 20.0) - PI)) * tex2D(_MainTex, float2(i.uv - (v * w2 * .05)));
-					col.a = min(2. * col.r, 1.) - length(uv_from_cent) * length(uv_from_cent);
+					half4 colA = tex2D(_MainTex, float2(i.uv - (v * w1 * .05)));
+					half4 colB = tex2D(_MainTex, float2(i.uv - (v * w2 * .05)));
+
+					half3 n_pixel = normalize(i.n);
+					// water surface depth
+					float pixelZ = LinearEyeDepth(i.vertex.z);
+					//float pixelZ = 0;
+					float3 lightDir = WorldSpaceLightDir(i.worldPos);
+					ComputeFoam(
+						float2(i.uv - (v * w1 * .05)),
+						i.invDeterminant_lodAlpha_worldXZUndisplaced.zw,
+						n_pixel, pixelZ,
+						lightDir, colA
+					);
+
+					ComputeFoam(
+						float2(i.uv - (v * w2 * .05)),
+						i.invDeterminant_lodAlpha_worldXZUndisplaced.zw,
+						n_pixel, pixelZ,
+						lightDir, colB
+					);
+
+					col = fixed4(0, 0, 0, 0);
+
+					col += .5 * (1.0 + cos((w1 * PI * 20.0) - PI)) * colA;
+					col += .5 * (1.0 + cos((w2 * PI * 20.0) - PI)) * colB;
+					//col.a = min(2. * col.r, 1.) - length(uv_from_cent) * length(uv_from_cent);
 					col.a = clamp(col.a, 0, 1);
+
+					//col = colB;
+
+
 					#endif
 				}
 
