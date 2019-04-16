@@ -41,8 +41,8 @@ namespace Crest
         bool _drawLODTransitionWaves;
 
         // Shader to be used to render evaluate Gerstner waves for each LOD
-        ComputeShader _waveShader;
-        int _kernelAnimWavesGerstnerBatchCompute;
+        public ComputeShader _waveShader;
+        public int _kernelAnimWavesGerstnerBatchCompute;
 
         // IMPORTANT - this mirrors the constant with the same name in ShapeGerstnerBatch.shader, both must be updated together!
         const int BATCH_SIZE = 32;

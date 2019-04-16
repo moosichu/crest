@@ -70,6 +70,7 @@ namespace Crest
                 _waveBuffers[i].anisoLevel = 0;
                 _waveBuffers[i].useMipMap = false;
                 _waveBuffers[i].name = "WaveBuffer_" + i + "_1";
+                _waveBuffers[i].enableRandomWrite = true;
             }
         }
 
@@ -87,6 +88,12 @@ namespace Crest
 
                 foreach (var gerstner in _gerstnerComponents)
                 {
+                    buf.SetComputeTextureParam(
+                        gerstner._waveShader,
+                        gerstner._kernelAnimWavesGerstnerBatchCompute,
+                        "WaveBuffer",
+                        _waveBuffers[lodIdx]
+                    );
                     gerstner.BuildCommandBuffer(lodIdx, ocean, buf);
                 }
 
