@@ -63,6 +63,8 @@ namespace Crest
                 _targets[i].anisoLevel = 0;
                 _targets[i].useMipMap = false;
                 _targets[i].name = SimName + "_" + i + "_0";
+                // NEED THIS FOR COMPUTE SHADER, TODO: sort out where we want to set this
+                _targets[i].enableRandomWrite = true;
             }
         }
 
@@ -102,6 +104,19 @@ namespace Crest
             _pwMat._target = properties;
             BindData(lodIdx, shapeSlot, _pwMat, DataTexture(lodIdx), true, ref OceanRenderer.Instance._lods[lodIdx]._renderData);
             _pwMat._target = null;
+        }
+
+        // TODO: REMOVE!!!!!
+        public void BindResultData(int lodIdx, int shapeSlot, IPropertyWrapper properties)
+        {
+            RenderTexture dataTexture = DataTexture(lodIdx);
+            BindData(lodIdx, shapeSlot, properties, dataTexture, true, ref OceanRenderer.Instance._lods[lodIdx]._renderData);
+        }
+
+        public void BindResultData(int lodIdx, int shapeSlot, IPropertyWrapper properties, bool blendOut)
+        {
+            RenderTexture dataTexture = DataTexture(lodIdx);
+            BindData(lodIdx, shapeSlot, properties, dataTexture, blendOut, ref OceanRenderer.Instance._lods[lodIdx]._renderData);
         }
 
         public void BindResultData(int lodIdx, int shapeSlot, MaterialPropertyBlock properties)

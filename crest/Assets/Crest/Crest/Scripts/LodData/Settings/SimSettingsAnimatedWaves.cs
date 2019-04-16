@@ -60,7 +60,7 @@ namespace Crest
                     result = GPUReadbackDisps.Instance;
                     break;
                 case CollisionSources.GerstnerWavesCPU:
-                    result = FindObjectOfType<ShapeGerstnerBatched>();
+                    result = FindObjectOfType<ShapeGerstnerBatchedCompute>();
                     break;
             }
 

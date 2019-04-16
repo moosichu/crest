@@ -33,7 +33,7 @@ namespace Crest
         /// </summary>
         public static bool _shapeCombinePass = true;
 
-        List<ShapeGerstnerBatched> _gerstnerComponents = new List<ShapeGerstnerBatched>();
+        List<ShapeGerstnerBatchedCompute> _gerstnerComponents = new List<ShapeGerstnerBatchedCompute>();
 
         RenderTexture[] _waveBuffers;
 
@@ -215,7 +215,7 @@ namespace Crest
             return -1;
         }
 
-        public void AddGerstnerComponent(ShapeGerstnerBatched gerstner)
+        public void AddGerstnerComponent(ShapeGerstnerBatchedCompute gerstner)
         {
             if (OceanRenderer.Instance == null)
             {
@@ -227,7 +227,7 @@ namespace Crest
             _gerstnerComponents.Add(gerstner);
         }
 
-        public void RemoveGerstnerComponent(ShapeGerstnerBatched gerstner)
+        public void RemoveGerstnerComponent(ShapeGerstnerBatchedCompute gerstner)
         {
             if (OceanRenderer.Instance == null)
             {

@@ -5,13 +5,15 @@
 using UnityEngine;
 using UnityEngine.Rendering;
 
+using System.Collections.Generic;
+
 namespace Crest
 {
     /// <summary>
     /// Support script for Gerstner wave ocean shapes.
     /// Generates a number of batches of Gerstner waves.
     /// </summary>
-    public class ShapeGerstnerBatched : MonoBehaviour, ICollProvider
+    public class ShapeGerstnerBatchedCompute : MonoBehaviour, ICollProvider
     {
         [Tooltip("Geometry to rasterize into wave buffers to generate waves.")]
         public Mesh _rasterMesh;
@@ -33,13 +35,14 @@ namespace Crest
         float[] _phases;
 
         // useful references
-        Material[] _materials;
+        GerstnerBatchComputeShaderInit[] _computeShaderInits;
         bool[] _drawLOD;
-        Material _materialBigWaveTransition;
+        GerstnerBatchComputeShaderInit _computeShaderInitBigWaveTransition;
         bool _drawLODTransitionWaves;
 
         // Shader to be used to render evaluate Gerstner waves for each LOD
-        Shader _waveShader;
+        ComputeShader _waveShader;
+        int _kernelAnimWavesGerstnerBatchCompute;
 
         // IMPORTANT - this mirrors the constant with the same name in ShapeGerstnerBatch.shader, both must be updated together!
         const int BATCH_SIZE = 32;
@@ -62,10 +65,121 @@ namespace Crest
             public static Vector4[] _chopAmpsBatch = new Vector4[BATCH_SIZE / 4];
         }
 
+
+
+        struct GerstnerBatchComputeShaderInit : IPropertyWrapper
+        {
+            public int _numInBatch;
+            public float _attenuationInShallows;
+            public int _numVecs;
+            public Vector4[] _twoPiOverWavelengthsBatch;
+            public Vector4[] _ampsBatch;
+            public Vector4[] _waveDirXBatch;
+            public Vector4[] _waveDirZBatch;
+            public Vector4[] _phasesBatch;
+            public Vector4[] _chopAmpsBatch;
+            public Dictionary<int, float> _floats;
+            public Dictionary<int, Vector4> _vectors;
+            public Dictionary<int, Texture> _textures;
+
+
+            private const string _NumInBatch = "_NumInBatch";
+            private const string _AttenuationInShallows = "_AttenuationInShallows";
+            private const string _NumWaveVecs = "_NumWaveVecs";
+
+            private const string _TwoPiOverWavelengths = "_TwoPiOverWavelengths";
+            private const string _Amplitudes = "_Amplitudes";
+            private const string _WaveDirX = "_WaveDirX";
+            private const string _WaveDirZ = "_WaveDirZ";
+            private const string _Phases = "_Phases";
+            private const string _ChopAmps = "_ChopAmps";
+
+
+            public GerstnerBatchComputeShaderInit(
+                int numInBatch,
+                float attenuationInShallows,
+                Vector4[] twoPiOverWavelengthsBatch,
+                Vector4[] ampsBatch,
+                Vector4[] waveDirXBatch,
+                Vector4[] waveDirZBatch,
+                Vector4[] phasesBatch,
+                Vector4[] chopAmpsBatch
+            )
+            {
+                // This will work quite well I imagine, so we need to either have PropertyWrapper wrap our init class, or
+                // we need to do something else
+                _numInBatch = numInBatch;
+                _attenuationInShallows = attenuationInShallows;
+                _numVecs = (_numInBatch + 3) / 4;
+                _twoPiOverWavelengthsBatch = twoPiOverWavelengthsBatch;
+                _ampsBatch = ampsBatch;
+                _waveDirXBatch = waveDirXBatch;
+                _waveDirZBatch = waveDirZBatch;
+                _phasesBatch = phasesBatch;
+                _chopAmpsBatch = chopAmpsBatch;
+
+                _floats = new Dictionary<int, float>();
+                _vectors = new Dictionary<int, Vector4>();
+                _textures = new Dictionary<int, Texture>();
+            }
+
+            public void SetShaderParameters(CommandBuffer commandBuffer, ComputeShader computeShader, int kernelIndex)
+            {
+                commandBuffer.SetComputeIntParam(computeShader, _NumInBatch, _numInBatch);
+                commandBuffer.SetComputeFloatParam(computeShader, _AttenuationInShallows, _attenuationInShallows);
+                commandBuffer.SetComputeIntParam(computeShader, _NumWaveVecs, _numVecs);
+                commandBuffer.SetComputeVectorArrayParam(computeShader, _TwoPiOverWavelengths, _twoPiOverWavelengthsBatch);
+                commandBuffer.SetComputeVectorArrayParam(computeShader, _Amplitudes, _ampsBatch);
+                commandBuffer.SetComputeVectorArrayParam(computeShader, _WaveDirX, _waveDirXBatch);
+                commandBuffer.SetComputeVectorArrayParam(computeShader, _WaveDirZ, _waveDirZBatch);
+                commandBuffer.SetComputeVectorArrayParam(computeShader, _Phases, _phasesBatch);
+                commandBuffer.SetComputeVectorArrayParam(computeShader, _ChopAmps, _chopAmpsBatch);
+
+                foreach(KeyValuePair<int, float> entry in _floats)
+                {
+                    commandBuffer.SetComputeFloatParam(computeShader, entry.Key, entry.Value);
+                }
+
+                foreach(KeyValuePair<int, Vector4> entry in _vectors)
+                {
+                    commandBuffer.SetComputeVectorParam(computeShader, entry.Key, entry.Value);
+                }
+
+                foreach(KeyValuePair<int, Texture> entry in _textures)
+                {
+                    commandBuffer.SetComputeTextureParam(computeShader, kernelIndex, entry.Key, entry.Value);
+                }
+
+            }
+
+
+            void IPropertyWrapper.SetFloat(int param, float value)
+            {
+                _floats.Add(param, value);
+            }
+
+            void IPropertyWrapper.SetVector(int param, Vector4 value)
+            {
+                if (_vectors.ContainsKey(param)) {
+                        _vectors[param] = value;
+                } else {
+                    _vectors.Add(param, value);
+                }
+            }
+
+            void IPropertyWrapper.SetTexture(int param, Texture value)
+            {
+                _textures.Add(param, value);
+            }
+
+        }
+
         void Start()
         {
-            _waveShader = Shader.Find("Crest/Inputs/Animated Waves/Gerstner Batch");
+            _waveShader = Resources.Load<ComputeShader>("AnimWavesGerstnerBatchCompute");
             Debug.Assert(_waveShader, "Could not load Gerstner wave shader, make sure it is packaged in the build.");
+
+            _kernelAnimWavesGerstnerBatchCompute = _waveShader.FindKernel("AnimWavesGerstnerBatchCompute");
 
             if (_spectrum == null)
             {
@@ -132,9 +246,9 @@ namespace Crest
             ReportMaxDisplacement();
 
             // this is done every frame for flexibility/convenience, in case the lod count changes
-            if (_materials == null || _materials.Length != OceanRenderer.Instance.CurrentLodCount)
+            if (_computeShaderInits == null || _computeShaderInits.Length != OceanRenderer.Instance.CurrentLodCount)
             {
-                InitMaterials();
+                InitComputeBuffers();
             }
         }
 
@@ -161,7 +275,7 @@ namespace Crest
             OceanRenderer.Instance.ReportMaxDisplacementFromShape(ampSum * _spectrum._chop, ampSum);
         }
 
-        void InitMaterials()
+        void InitComputeBuffers()
         {
             foreach (var child in transform)
             {
@@ -169,16 +283,14 @@ namespace Crest
             }
 
             // num octaves plus one, because there is an additional last bucket for large wavelengths
-            _materials = new Material[OceanRenderer.Instance.CurrentLodCount];
-            _drawLOD = new bool[_materials.Length];
+            _computeShaderInits = new GerstnerBatchComputeShaderInit[OceanRenderer.Instance.CurrentLodCount];
+            _drawLOD = new bool[_computeShaderInits.Length];
 
-            for (int i = 0; i < _materials.Length; i++)
+            for (int i = 0; i < _computeShaderInits.Length; i++)
             {
-                _materials[i] = new Material(_waveShader);
                 _drawLOD[i] = false;
             }
 
-            _materialBigWaveTransition = new Material(_waveShader);
             _drawLODTransitionWaves = false;
         }
 
@@ -186,7 +298,7 @@ namespace Crest
         /// Computes Gerstner params for a set of waves, for the given lod idx. Writes shader data to the given material.
         /// Returns number of wave components rendered in this batch.
         /// </summary>
-        int UpdateBatch(int lodIdx, int firstComponent, int lastComponentNonInc, Material material)
+        int UpdateBatch(int lodIdx, int firstComponent, int lastComponentNonInc, out GerstnerBatchComputeShaderInit computeShaderInit)
         {
             int numComponents = lastComponentNonInc - firstComponent;
             int numInBatch = 0;
@@ -263,51 +375,50 @@ namespace Crest
                 numComponents = BATCH_SIZE;
             }
 
-            if (numInBatch == 0)
+            // TODO: sort the non-zero case
+            if (numInBatch != 0)
             {
-                // no waves to draw - abort
-                return numInBatch;
-            }
-
-            // if we did not fill the batch, put a terminator signal after the last position
-            if (numInBatch < BATCH_SIZE)
-            {
-                int vi_last = numInBatch / 4;
-                int ei_last = numInBatch - vi_last * 4;
-
-                for (int vi = vi_last; vi < BATCH_SIZE / 4; vi++)
+                // if we did not fill the batch, put a terminator signal after the last position
+                if (numInBatch < BATCH_SIZE)
                 {
-                    for (int ei = ei_last; ei < 4; ei++)
-                    {
-                        UpdateBatchScratchData._twoPiOverWavelengthsBatch[vi][ei] = 1f; // wary of NaNs
-                        UpdateBatchScratchData._ampsBatch[vi][ei] = 0f;
-                        UpdateBatchScratchData._waveDirXBatch[vi][ei] = 0f;
-                        UpdateBatchScratchData._waveDirZBatch[vi][ei] = 0f;
-                        UpdateBatchScratchData._phasesBatch[vi][ei] = 0f;
-                        UpdateBatchScratchData._chopAmpsBatch[vi][ei] = 0f;
-                    }
+                    int vi_last = numInBatch / 4;
+                    int ei_last = numInBatch - vi_last * 4;
 
-                    ei_last = 0;
+                    for (int vi = vi_last; vi < BATCH_SIZE / 4; vi++)
+                    {
+                        for (int ei = ei_last; ei < 4; ei++)
+                        {
+                            UpdateBatchScratchData._twoPiOverWavelengthsBatch[vi][ei] = 1f; // wary of NaNs
+                            UpdateBatchScratchData._ampsBatch[vi][ei] = 0f;
+                            UpdateBatchScratchData._waveDirXBatch[vi][ei] = 0f;
+                            UpdateBatchScratchData._waveDirZBatch[vi][ei] = 0f;
+                            UpdateBatchScratchData._phasesBatch[vi][ei] = 0f;
+                            UpdateBatchScratchData._chopAmpsBatch[vi][ei] = 0f;
+                        }
+
+                        ei_last = 0;
+                    }
                 }
             }
 
-            // apply the data to the shape material
-            material.SetVectorArray("_TwoPiOverWavelengths", UpdateBatchScratchData._twoPiOverWavelengthsBatch);
-            material.SetVectorArray("_Amplitudes", UpdateBatchScratchData._ampsBatch);
-            material.SetVectorArray("_WaveDirX", UpdateBatchScratchData._waveDirXBatch);
-            material.SetVectorArray("_WaveDirZ", UpdateBatchScratchData._waveDirZBatch);
-            material.SetVectorArray("_Phases", UpdateBatchScratchData._phasesBatch);
-            material.SetVectorArray("_ChopAmps", UpdateBatchScratchData._chopAmpsBatch);
-            material.SetFloat("_NumInBatch", numInBatch);
-            material.SetFloat("_AttenuationInShallows", OceanRenderer.Instance._simSettingsAnimatedWaves.AttenuationInShallows);
 
-            int numVecs = (numInBatch + 3) / 4;
-            material.SetInt("_NumWaveVecs", numVecs);
-            OceanRenderer.Instance._lodDataAnimWaves.BindResultData(lodIdx, 0, material);
+            computeShaderInit = new GerstnerBatchComputeShaderInit(
+                numInBatch,
+                OceanRenderer.Instance._simSettingsAnimatedWaves.AttenuationInShallows,
+                UpdateBatchScratchData._twoPiOverWavelengthsBatch,
+                UpdateBatchScratchData._ampsBatch,
+                UpdateBatchScratchData._waveDirXBatch,
+                UpdateBatchScratchData._waveDirZBatch,
+                UpdateBatchScratchData._phasesBatch,
+                UpdateBatchScratchData._chopAmpsBatch
+            );
+
+            // TODO: SORT THIS OUT!
+            OceanRenderer.Instance._lodDataAnimWaves.BindResultData(lodIdx, 0, computeShaderInit);
 
             if (OceanRenderer.Instance._lodDataSeaDepths)
             {
-                OceanRenderer.Instance._lodDataSeaDepths.BindResultData(lodIdx, 0, material, false);
+                OceanRenderer.Instance._lodDataSeaDepths.BindResultData(lodIdx, 0, computeShaderInit, false);
             }
 
             return numInBatch;
@@ -344,14 +455,14 @@ namespace Crest
                     componentIdx++;
                 }
 
-                _drawLOD[lod] = UpdateBatch(lod, startCompIdx, componentIdx, _materials[lod]) > 0;
+                _drawLOD[lod] = UpdateBatch(lod, startCompIdx, componentIdx, out _computeShaderInits[lod]) > 0;
             }
 
             // the last batch handles waves for the last lod, and waves that did not fit in the last lod
             _drawLOD[OceanRenderer.Instance.CurrentLodCount - 1] =
-                UpdateBatch(OceanRenderer.Instance.CurrentLodCount - 1, componentIdx, _wavelengths.Length, _materials[OceanRenderer.Instance.CurrentLodCount - 1]) > 0;
+                UpdateBatch(OceanRenderer.Instance.CurrentLodCount - 1, componentIdx, _wavelengths.Length, out _computeShaderInits[OceanRenderer.Instance.CurrentLodCount - 1]) > 0;
             _drawLODTransitionWaves =
-                UpdateBatch(OceanRenderer.Instance.CurrentLodCount - 2, componentIdx, _wavelengths.Length, _materialBigWaveTransition) > 0;
+                UpdateBatch(OceanRenderer.Instance.CurrentLodCount - 2, componentIdx, _wavelengths.Length, out _computeShaderInitBigWaveTransition) > 0;
         }
 
         /// <summary>
@@ -363,22 +474,48 @@ namespace Crest
         {
             var lodCount = ocean.CurrentLodCount;
 
+            int dim = Mathf.RoundToInt(OceanRenderer.Instance._lods[lodIdx]._renderData._textureRes);
             // LODs up to but not including the last lod get the normal sets of waves
             if (lodIdx < lodCount - 1 && _drawLOD[lodIdx])
             {
-                buf.DrawMesh(_rasterMesh, Matrix4x4.identity, _materials[lodIdx]);
+                //buf.DrawMesh(_rasterMesh, Matrix4x4.identity, _computeShaderInits[lodIdx]);
+                _computeShaderInits[lodIdx].SetShaderParameters(buf, _waveShader, _kernelAnimWavesGerstnerBatchCompute);
+                buf.DispatchCompute(
+                    _waveShader,
+                    _kernelAnimWavesGerstnerBatchCompute,
+                    dim,
+                    dim,
+                    1
+                );
+
             }
 
             // The second-to-last lod will transition content into it from the last lod
             if (lodIdx == lodCount - 2 && _drawLODTransitionWaves)
             {
-                buf.DrawMesh(_rasterMesh, Matrix4x4.identity, _materialBigWaveTransition);
+                //buf.DrawMesh(_rasterMesh, Matrix4x4.identity, _computeShaderInitBigWaveTransition);
+                _computeShaderInitBigWaveTransition.SetShaderParameters(buf, _waveShader, _kernelAnimWavesGerstnerBatchCompute);
+                buf.DispatchCompute(
+                    _waveShader,
+                    _kernelAnimWavesGerstnerBatchCompute,
+                    dim,
+                    dim,
+                    1
+                );
             }
 
             // Last lod gets the big wavelengths
             if (lodIdx == lodCount - 1 && _drawLOD[lodIdx])
             {
-                buf.DrawMesh(_rasterMesh, Matrix4x4.identity, _materials[OceanRenderer.Instance.CurrentLodCount - 1]);
+                //buf.DrawMesh(_rasterMesh, Matrix4x4.identity, _computeShaderInits[OceanRenderer.Instance.CurrentLodCount - 1]);
+                _computeShaderInits[OceanRenderer.Instance.CurrentLodCount - 1].SetShaderParameters(buf, _waveShader, _kernelAnimWavesGerstnerBatchCompute);
+                buf.DispatchCompute(
+                    _waveShader,
+                    _kernelAnimWavesGerstnerBatchCompute,
+                    dim,
+                    dim,
+                    1
+                );
             }
         }
 
@@ -386,7 +523,7 @@ namespace Crest
         {
             if (OceanRenderer.Instance != null && OceanRenderer.Instance._lodDataAnimWaves != null)
             {
-                // OceanRenderer.Instance._lodDataAnimWaves.AddGerstnerComponent(this);
+                OceanRenderer.Instance._lodDataAnimWaves.AddGerstnerComponent(this);
             }
         }
 
@@ -394,7 +531,7 @@ namespace Crest
         {
             if (OceanRenderer.Instance != null && OceanRenderer.Instance._lodDataAnimWaves != null)
             {
-                // OceanRenderer.Instance._lodDataAnimWaves.RemoveGerstnerComponent(this);
+                OceanRenderer.Instance._lodDataAnimWaves.RemoveGerstnerComponent(this);
             }
         }
 
