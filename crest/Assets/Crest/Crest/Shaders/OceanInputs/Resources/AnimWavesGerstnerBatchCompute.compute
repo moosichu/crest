@@ -75,20 +75,10 @@ void AnimWavesGerstnerBatchCompute (uint3 id : SV_DispatchThreadID)
 
     const half4 oneMinusAttenuation = (half4)1.0 - (half4)_AttenuationInShallows;
 
-
     half2 textureRes = half2(_LD_Params_0.y, _LD_Params_0.y);
     half2 uv = half2(id.xy) / textureRes + 0.5 / textureRes;
 
     float2 worldXZ = LD_0_UVToWorld(uv);
-
-    SamplerState MeshTextureSampler
-    {
-        Filter = MIN_MAG_MIP_LINEAR;
-        AddressU = Wrap;
-        AddressV = Wrap;
-    };
-
-
 
     // sample ocean depth (this render target should 1:1 match depth texture, so UVs are trivial)
     const half depth = CREST_OCEAN_DEPTH_BASELINE - _LD_Sampler_SeaFloorDepth_0[id.xy].x;
