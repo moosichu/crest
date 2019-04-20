@@ -111,12 +111,18 @@ namespace Crest
                 _numInBatch = numInBatch;
                 _attenuationInShallows = attenuationInShallows;
                 _numVecs = (_numInBatch + 3) / 4;
-                _twoPiOverWavelengthsBatch = twoPiOverWavelengthsBatch;
-                _ampsBatch = ampsBatch;
-                _waveDirXBatch = waveDirXBatch;
-                _waveDirZBatch = waveDirZBatch;
-                _phasesBatch = phasesBatch;
-                _chopAmpsBatch = chopAmpsBatch;
+                _twoPiOverWavelengthsBatch = new Vector4[BATCH_SIZE / 4];
+                System.Array.Copy(twoPiOverWavelengthsBatch, _twoPiOverWavelengthsBatch, BATCH_SIZE / 4);
+                _ampsBatch = new Vector4[BATCH_SIZE / 4];
+                System.Array.Copy(ampsBatch, _ampsBatch, BATCH_SIZE / 4);
+                _waveDirXBatch = new Vector4[BATCH_SIZE / 4];
+                System.Array.Copy(waveDirXBatch, _waveDirXBatch, BATCH_SIZE / 4);
+                _waveDirZBatch = new Vector4[BATCH_SIZE / 4];
+                System.Array.Copy(waveDirZBatch, _waveDirZBatch, BATCH_SIZE / 4);
+                _phasesBatch = new Vector4[BATCH_SIZE / 4];
+                System.Array.Copy(phasesBatch, _phasesBatch, BATCH_SIZE / 4);
+                _chopAmpsBatch = new Vector4[BATCH_SIZE / 4];
+                System.Array.Copy(chopAmpsBatch, _chopAmpsBatch, BATCH_SIZE / 4);
 
                 _floats = new Dictionary<int, float>();
                 _vectors = new Dictionary<int, Vector4>();
