@@ -156,12 +156,6 @@ namespace Crest
             InitTimeProvider();
         }
 
-        [UnityEditor.Callbacks.DidReloadScripts]
-        private static void OnReLoadScripts()
-        {
-            Instance = FindObjectOfType<OceanRenderer>();
-        }
-
         void InitViewpoint()
         {
             if (_viewpoint == null)
