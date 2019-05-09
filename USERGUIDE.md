@@ -10,15 +10,18 @@
 
 # Initial setup
 
+A video walkthrough of the setup steps below is available on youtube: https://www.youtube.com/watch?v=qsgeG4sSLFw .
+
+Note: Frequently when changing Unity versions the project can appear to break (no ocean rendering, materials appear pink, other issues). Usually restarting the Editor fixes it. In one case the scripts became unassigned in the example content scene, but closing Unity, removing the Library folder, and restarting resolved it.
+
 ## Importing Crest files into project
 
 The steps to set up *Crest* in a new or existing project currently look as follows:
 
-* Switch your project to Linear space rendering under *Edit > Project Settings > Player > Other Settings*. If your platform(s) require Gamma space, the material settings will need to be adjusted to compensate.
+* Switch to Linear space rendering under *Edit/Project Settings/Player/Other Settings*. If your platform(s) require Gamma space, the material settings will need to be adjusted to compensate.
 * Import *Crest* assets by either:
   * Picking a release from the [Releases page](https://github.com/huwb/crest-oceanrender/releases) and importing the desired packages
   * Getting latest by either cloning this repos or downloading it as a zip, and copying the *Crest* folder and the desired content from the *Crest-Examples* folders into your project. Be sure to always copy the .meta files.
-  * Note that the *Crest* files are separated into the core files to import in any project, and example content. The core is intentionally kept small and general. If you are getting started for the first time you may want to import both and then remove what you don't need from the example content.
 
 ## Adding the ocean to a scene
 
@@ -28,7 +31,7 @@ The steps to set up the ocean:
   * Assign the *OceanRenderer* component to it. On startup this component will generate the ocean geometry and do all required initialisation.
   * Assign the desired ocean material to the *OceanRenderer* script - this is a material using the *Crest/Ocean* shader.
   * Set the Y coordinate of the position to the desired sea level.
-* Tag a primary camera as *MainCamera* if one is not tagged already, or provide the viewpoint transform to the *OceanRenderer* script.
+* Tag a primary camera as *MainCamera* if one is not tagged already, or provide the *Viewpoint* transform to the *OceanRenderer* script. If you need to switch between multiple cameras, update the *Viewpoint* field to ensure the ocean follows the correct view.
 * To add waves, create a new GameObject and add the *Shape Gerster Batched* component.
   * On startup this script creates a default ocean shape. To edit the shape, create an asset of type *Crest/Ocean Wave Spectrum* and provide it to this script.
   * Smooth blending of ocean shapes can be achieved by adding multiple *Shape Gerstner Batched* scripts and crossfading them using the *Weight* parameter.
@@ -49,6 +52,18 @@ The steps to set up the ocean:
 * A big strength of *Crest* is that you can add whatever contributions you like into the system. You could add your own shape or deposit foam onto the surface where desired. Inputs are generally tagged with the *Register* scripts and examples can be found in the example content scenes.
 
 All settings can be live authored. When tweaking ocean shape it can be useful to freeze time (set *Time.timeScale* to 0) to clearly see the effect of each octave of waves.
+
+### Reflections
+
+Reflections contribute hugely to the appearance of the ocean. The Index of Refraction settings control how much reflection contributes for different view angles. 
+
+The base reflection comes from a one of these sources:
+
+* Unity's specular cubemap. This is the default and is the same as what is applied to glossy objects in the scene. It will support reflection probes, as long as the probe extents cover the ocean tiles, which enables real-time update of the reflection environment (see Unity documentation for more details).
+* Override reflection cubemap. If desired a cubemap can be provided to use for the reflections. For best results supply a HDR cubemap.
+* Procedural skybox - developed for stylized games, this is a simple approximation of sky colours that will give soft results.
+
+This base reflection can then be overridden by dynamic planar reflections. This can be used to augment the reflection with 3D objects such as boat or terrain. This can be enabled by applying the *Ocean Planar Reflections* script to the active camera and configuring which layers get reflected (don't include water). This renders every frame by default but can be configured to render less frequently. This only renders one view but also only captures a limited field of view of reflections, and the reflection directions are scaled down to help keep them in this limited view, which can give a different appearance. Furthermore 'planar' means the surface is approximated by a plane which is not the case for wavey ocean, so the effect can break down. This method is good for capturing local objects like boats etc.
 
 ## Ocean construction parameters
 
@@ -151,7 +166,9 @@ This LOD data provides a sense of water depth. This is useful information for th
 The following will contribute to ocean depth:
 
 * Objects that have the *RegisterSeaFloorDepthInput* component attached. These objects will render every frame. This is useful for any dynamically moving surfaces that need to generate shoreline foam, etc.
-* It is also possible to place world space depth caches. The scene objects will be rendered into this cache once, and the results saved. Once the cache is populated it is then copied into the Sea Floor Depth LOD Data.
+* It is also possible to place world space depth caches. The scene objects will be rendered into this cache once, and the results saved. Once the cache is populated it is then copied into the Sea Floor Depth LOD Data. The cache has a gizmo that represents the extents of the cache (white outline) and the near plane of the camera that renders the depth (translucent rectangle). The cache should be placed at sea level and rotated/scaled to encapsulate the terrain.
+
+When the water is e.g. 250m deep, this will start to dampen 500m wavelengths, so it is recommended that the sea floor drop down to around this depth away from islands so that there is a smooth transition between shallow and deep water without a visible boundary.
 
 
 ## Shadow
@@ -161,6 +178,8 @@ To enable shadowing of the ocean surface, data is captured from the shadow maps 
 It stores two channels - one channel is normal shadowing, and the other jitters the lookup and accumulates across many frames to blur and soften the shadow data. The latter channel is used to affect scattered light within the water volume.
 
 The shadow sim can be configured by assigning a Shadow Sim Settings asset to the OceanRenderer script in your scene (*Create/Crest/Shadow Sim Settings*).
+
+Currently in the built-in render pipeline, shadows only work when the primary camera is set to Forward rendering.
 
 
 # Collision Shape for Physics
@@ -230,3 +249,36 @@ It is tricky to get pop free results for world space texturing. To make it work 
   * Caustics - also should be a power of 2 scale, if caustics are visible when origin shifts happen 
 
 By default the *FloatingOrigin* script will call *FindObjectsOfType()* for a few different component types, which is a notoriously expensive operation. It is possible to provide custom lists of components to the 'override' fields, either by hand or programmatically, to avoid searching the entire scene(s) for the components. Managing these lists at run-time is left to the user.
+
+## Buoyancy / Floating Physics
+
+*BoatAlignNormal* is a simple script that attempts to match the object position and rotation with the surface height and normal. This can work well enough for small water craft that don't need perfect floating behaviour, or floating objects such as buoys, barrels, etc.
+
+*BoatProbes* is a more advanced implementation that computes buoyancy forces at a number of *ForcePoints* and uses these to apply force and torque to the object. This gives more accurate results at the cost of more queries.
+
+We've found issues caused by having multiple overlapping physics collision primitives (or multiple rigidbodies) within the floating object, or when the object pivot is not at the center of mass.
+
+# Q&A
+
+**Is Crest well suited for medium-to-low powered mobile devices?**
+Crest is built to be performant by design and has numerous quality/performance levers.
+However it is also built to be very flexible and powerful and as such can not compete with a minimal, mobile-centric ocean renderer such as the one in the *BoatAttack* project.
+Therefore we target Crest at PC/console platforms.
+
+**Which platforms does Crest support?**
+Testing occurs primarily on Windows.
+We have users targeting Windows, Mac, Linux, PS4, XboxOne, Switch and iOS/Android.
+Performance is a challenge on Switch and mobile platforms - see the previous question.
+
+**Is Crest well suited for localised bodies of water such as lakes?**
+Currently Crest is currrently targeted towards large bodies of water.
+The water could be pushed down where it's not wanted which would allow it to achieve rivers and lakes to some extent.
+
+**Does Crest support third party sky assets?**
+We have heard of Crest users using TrueSky, AzureSky.
+These may require some code to be inserted into the ocean shader - there is a comment referring to this, search *Ocean.shader* for 'Azure'.
+
+**Can Crest work in Edit mode in the Unity Editor, or only in Play mode?**
+Currently it only works in Play mode. Some work has been done to make it work in Edit mode but more work/fixes/testing is needed. https://github.com/huwb/crest-oceanrender/issues/208
+
+

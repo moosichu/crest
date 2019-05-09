@@ -15,8 +15,11 @@ Shader "Crest/Inputs/Animated Waves/Gerstner Batch"
 	{
 		Pass
 		{
-			Blend One One
-		
+			Blend SrcAlpha One
+			ZWrite Off
+			ZTest Always
+			Cull Off
+
 			CGPROGRAM
 			#pragma vertex Vert
 			#pragma fragment Frag
@@ -55,7 +58,11 @@ Shader "Crest/Inputs/Animated Waves/Gerstner Batch"
 			Varyings Vert(Attributes input)
 			{
 				Varyings o;
-				o.positionCS = float4(input.positionOS.x, -input.positionOS.y, 0.0, 0.5);
+				o.positionCS = float4(input.positionOS.xy, 0.0, 0.5);
+
+#if UNITY_UV_STARTS_AT_TOP // https://docs.unity3d.com/Manual/SL-PlatformDifferences.html
+				o.positionCS.y = -o.positionCS.y;
+#endif
 
 				float2 worldXZ = LD_0_UVToWorld(input.uv);
 
@@ -111,7 +118,7 @@ Shader "Crest/Inputs/Animated Waves/Gerstner Batch"
 					result.z += dot(resultz, wt);
 				}
 
-				return half4(input.worldPos_wt.z * result, 0.0);
+				return half4(result, input.worldPos_wt.z);
 			}
 
 			ENDCG

@@ -5,7 +5,6 @@
 using System.Collections.Generic;
 using UnityEngine;
 using UnityEngine.Rendering;
-using DrawFilter = System.Func<Crest.RegisterLodDataInputBase, bool>;
 
 namespace Crest
 {
@@ -51,6 +50,8 @@ namespace Crest
 
         protected virtual void InitData()
         {
+            Debug.Assert(SystemInfo.SupportsRenderTextureFormat(TextureFormat), "The graphics device does not support the render texture format " + TextureFormat.ToString());
+
             int resolution = OceanRenderer.Instance.LodDataResolution;
             var desc = new RenderTextureDescriptor(resolution, resolution, TextureFormat, 0);
 
@@ -95,28 +96,14 @@ namespace Crest
             _scaleDifferencePow2 = Mathf.RoundToInt(ratio_l2);
         }
 
-        protected PropertyWrapperMaterial _pwMat = new PropertyWrapperMaterial();
-        protected PropertyWrapperMPB _pwMPB = new PropertyWrapperMPB();
-
-        public void BindResultData(int lodIdx, int shapeSlot, Material properties)
+        public void BindResultData(int lodIdx, int shapeSlot, IPropertyWrapper properties)
         {
-            _pwMat._target = properties;
-            BindData(lodIdx, shapeSlot, _pwMat, DataTexture(lodIdx), true, ref OceanRenderer.Instance._lods[lodIdx]._renderData);
-            _pwMat._target = null;
+            BindData(lodIdx, shapeSlot, properties, DataTexture(lodIdx), true, ref OceanRenderer.Instance._lods[lodIdx]._renderData);
         }
 
-        public void BindResultData(int lodIdx, int shapeSlot, MaterialPropertyBlock properties)
+        public void BindResultData(int lodIdx, int shapeSlot, IPropertyWrapper properties, bool blendOut)
         {
-            _pwMPB._target = properties;
-            BindData(lodIdx, shapeSlot, _pwMPB, DataTexture(lodIdx), true, ref OceanRenderer.Instance._lods[lodIdx]._renderData);
-            _pwMPB._target = null;
-        }
-
-        public void BindResultData(int lodIdx, int shapeSlot, Material properties, bool blendOut)
-        {
-            _pwMat._target = properties;
-            BindData(lodIdx, shapeSlot, _pwMat, DataTexture(lodIdx), blendOut, ref OceanRenderer.Instance._lods[lodIdx]._renderData);
-            _pwMat._target = null;
+            BindData(lodIdx, shapeSlot, properties, DataTexture(lodIdx), blendOut, ref OceanRenderer.Instance._lods[lodIdx]._renderData);
         }
 
         protected virtual void BindData(int lodIdx, int shapeSlot, IPropertyWrapper properties, Texture applyData, bool blendOut, ref LodTransform.RenderData renderData)
@@ -181,6 +168,11 @@ namespace Crest
             o_b = temp;
         }
 
+        public interface IDrawFilter
+        {
+            bool Filter(RegisterLodDataInputBase data);
+        }
+
         protected void SubmitDraws(int lodIdx, CommandBuffer buf)
         {
             var lt = OceanRenderer.Instance._lods[lodIdx];
@@ -190,11 +182,11 @@ namespace Crest
 
             foreach (var draw in _drawList)
             {
-                buf.DrawRenderer(draw.RendererComponent, draw.RendererComponent.material);
+                buf.DrawRenderer(draw.RendererComponent, draw.RendererComponent.sharedMaterial);
             }
         }
 
-        protected void SubmitDrawsFiltered(int lodIdx, CommandBuffer buf, DrawFilter filter)
+        protected void SubmitDrawsFiltered(int lodIdx, CommandBuffer buf, IDrawFilter filter)
         {
             var lt = OceanRenderer.Instance._lods[lodIdx];
             lt._renderData.Validate(0, this);
@@ -203,9 +195,9 @@ namespace Crest
 
             foreach (var draw in _drawList)
             {
-                if (filter(draw))
+                if (filter.Filter(draw))
                 {
-                    buf.DrawRenderer(draw.RendererComponent, draw.RendererComponent.material);
+                    buf.DrawRenderer(draw.RendererComponent, draw.RendererComponent.sharedMaterial);
                 }
             }
         }

@@ -16,24 +16,32 @@ namespace Crest
         protected readonly int MAX_SIM_STEPS = 4;
 
         RenderTexture[] _sources;
-        Material[,] _renderSimMaterial;
+        PropertyWrapperMaterial[,] _renderSimMaterial;
 
         protected abstract string ShaderSim { get; }
 
         float _substepDtPrevious = 1f / 60f;
 
+        static int sp_SimDeltaTime = Shader.PropertyToID("_SimDeltaTime");
+        static int sp_SimDeltaTimePrev = Shader.PropertyToID("_SimDeltaTimePrev");
+        static int sp_GridSize = Shader.PropertyToID("_GridSize");
+
         protected override void Start()
         {
             base.Start();
 
-            var lodCount = OceanRenderer.Instance.CurrentLodCount;
-            _renderSimMaterial = new Material[MAX_SIM_STEPS, lodCount];
+            CreateMaterials(OceanRenderer.Instance.CurrentLodCount);
+        }
+
+        void CreateMaterials(int lodCount)
+        {
+            _renderSimMaterial = new PropertyWrapperMaterial[MAX_SIM_STEPS, lodCount];
             var shader = Shader.Find(ShaderSim);
             for (int stepi = 0; stepi < MAX_SIM_STEPS; stepi++)
             {
                 for (int i = 0; i < lodCount; i++)
                 {
-                    _renderSimMaterial[stepi, i] = new Material(shader);
+                    _renderSimMaterial[stepi, i] = new PropertyWrapperMaterial(shader);
                 }
             }
         }
@@ -41,6 +49,8 @@ namespace Crest
         protected override void InitData()
         {
             base.InitData();
+
+            Debug.Assert(SystemInfo.SupportsRenderTextureFormat(TextureFormat), "The graphics device does not support the render texture format " + TextureFormat.ToString());
 
             int resolution = OceanRenderer.Instance.LodDataResolution;
             var desc = new RenderTextureDescriptor(resolution, resolution, TextureFormat, 0);
@@ -58,16 +68,13 @@ namespace Crest
             }
         }
 
-        public void BindSourceData(int lodIdx, int shapeSlot, Material properties, bool paramsOnly, bool usePrevTransform)
+        public void BindSourceData(int lodIdx, int shapeSlot, PropertyWrapperMaterial properties, bool paramsOnly, bool usePrevTransform)
         {
-            _pwMat._target = properties;
-
             var rd = usePrevTransform ?
                 OceanRenderer.Instance._lods[lodIdx]._renderDataPrevFrame.Validate(BuildCommandBufferBase._lastUpdateFrame - Time.frameCount, this)
                 : OceanRenderer.Instance._lods[lodIdx]._renderData.Validate(0, this);
 
-            BindData(lodIdx, shapeSlot, _pwMat, paramsOnly ? Texture2D.blackTexture : (Texture)_sources[lodIdx], true, ref rd);
-            _pwMat._target = null;
+            BindData(lodIdx, shapeSlot, properties, paramsOnly ? Texture2D.blackTexture : (Texture)_sources[lodIdx], true, ref rd);
         }
 
         public abstract void GetSimSubstepData(float frameDt, out int numSubsteps, out float substepDt);
@@ -90,10 +97,10 @@ namespace Crest
 
                 for (var lodIdx = lodCount - 1; lodIdx >= 0; lodIdx--)
                 {
-                    _renderSimMaterial[stepi, lodIdx].SetFloat("_SimDeltaTime", substepDt);
-                    _renderSimMaterial[stepi, lodIdx].SetFloat("_SimDeltaTimePrev", _substepDtPrevious);
+                    _renderSimMaterial[stepi, lodIdx].SetFloat(sp_SimDeltaTime, substepDt);
+                    _renderSimMaterial[stepi, lodIdx].SetFloat(sp_SimDeltaTimePrev, _substepDtPrevious);
 
-                    _renderSimMaterial[stepi, lodIdx].SetFloat("_GridSize", OceanRenderer.Instance._lods[lodIdx]._renderData._texelWidth);
+                    _renderSimMaterial[stepi, lodIdx].SetFloat(sp_GridSize, OceanRenderer.Instance._lods[lodIdx]._renderData._texelWidth);
 
                     // compute which lod data we are sampling source data from. if a scale change has happened this can be any lod up or down the chain.
                     // this is only valid on the first update step, after that the scale src/target data are in the right places.
@@ -120,7 +127,7 @@ namespace Crest
                         buf.SetRenderTarget(rt, rt.depthBuffer);
                     }
 
-                    buf.DrawMesh(FullScreenQuad(), Matrix4x4.identity, _renderSimMaterial[stepi, lodIdx]);
+                    buf.DrawMesh(FullScreenQuad(), Matrix4x4.identity, _renderSimMaterial[stepi, lodIdx].material);
 
                     SubmitDraws(lodIdx, buf);
                 }
@@ -144,7 +151,7 @@ namespace Crest
         /// <summary>
         /// Set any sim-specific shader params.
         /// </summary>
-        protected virtual void SetAdditionalSimParams(int lodIdx, Material simMaterial)
+        protected virtual void SetAdditionalSimParams(int lodIdx, PropertyWrapperMaterial simMaterial)
         {
         }
 
@@ -177,5 +184,20 @@ namespace Crest
 
             return s_fullScreenQuad;
         }
+
+#if UNITY_EDITOR
+        [UnityEditor.Callbacks.DidReloadScripts]
+        private static void OnReLoadScripts()
+        {
+            var ocean = FindObjectOfType<OceanRenderer>();
+            if (ocean == null) return;
+            foreach (var ldp in ocean.GetComponents<LodDataMgrPersistent>())
+            {
+                // Unity does not serialize multidimensional arrays, or arrays of arrays. It does serialise arrays of objects containing arrays though.
+                ldp.CreateMaterials(ocean.CurrentLodCount);
+            }
+        }
+#endif
+
     }
 }
