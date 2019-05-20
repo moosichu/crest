@@ -2,8 +2,13 @@
 
 // This file is subject to the MIT License as seen in the root of this folder structure (LICENSE)
 
+#if ENABLE_COMPUTE_SHADERS
+#define USE_ASYNC_COMPUTE
+#endif
+
 using UnityEngine;
 using UnityEngine.Rendering;
+
 
 namespace Crest
 {
@@ -28,43 +33,85 @@ namespace Crest
     public class BuildCommandBuffer : BuildCommandBufferBase
     {
         CommandBuffer _buf;
+#if USE_ASYNC_COMPUTE
+        CommandBuffer _bufAsync;
+#endif
 
-        void Build(OceanRenderer ocean, CommandBuffer buf)
+        void Build(OceanRenderer ocean)
         {
+#if USE_ASYNC_COMPUTE
             /////////////////////////////////////////////////////////////////////////////////////////////////////////////////
             // --- Ocean depths
             if (ocean._lodDataSeaDepths)
             {
-                ocean._lodDataSeaDepths.BuildCommandBuffer(ocean, buf);
+                ocean._lodDataSeaDepths.BuildCommandBuffer(ocean, _buf);
             }
 
             /////////////////////////////////////////////////////////////////////////////////////////////////////////////////
             // --- Flow data
             if (ocean._lodDataFlow)
             {
-                ocean._lodDataFlow.BuildCommandBuffer(ocean, buf);
+                ocean._lodDataFlow.BuildCommandBuffer(ocean, _buf);
             }
 
             /////////////////////////////////////////////////////////////////////////////////////////////////////////////////
             // --- Dynamic wave simulations
             if (ocean._lodDataDynWaves)
             {
-                ocean._lodDataDynWaves.BuildCommandBuffer(ocean, buf);
+                ocean._lodDataDynWaves.BuildCommandBuffer(ocean, _buf);
             }
 
             /////////////////////////////////////////////////////////////////////////////////////////////////////////////////
             // --- Animated waves next
             if (ocean._lodDataAnimWaves)
             {
-                ocean._lodDataAnimWaves.BuildCommandBuffer(ocean, buf);
+                ocean._lodDataAnimWaves.BuildCommandBuffer(ocean, _buf);
             }
 
             /////////////////////////////////////////////////////////////////////////////////////////////////////////////////
             // --- Foam simulation
             if (ocean._lodDataFoam)
             {
-                ocean._lodDataFoam.BuildCommandBuffer(ocean, buf);
+                var fence = _buf.CreateAsyncGraphicsFence(SynchronisationStage.PixelProcessing);
+                _bufAsync.WaitOnAsyncGraphicsFence(fence);
+                ocean._lodDataFoam.BuildCommandBuffer(ocean, _bufAsync);
             }
+#else
+            /////////////////////////////////////////////////////////////////////////////////////////////////////////////////
+            // --- Ocean depths
+            if (ocean._lodDataSeaDepths)
+            {
+                ocean._lodDataSeaDepths.BuildCommandBuffer(ocean, _buf);
+            }
+
+            /////////////////////////////////////////////////////////////////////////////////////////////////////////////////
+            // --- Flow data
+            if (ocean._lodDataFlow)
+            {
+                ocean._lodDataFlow.BuildCommandBuffer(ocean, _buf);
+            }
+
+            /////////////////////////////////////////////////////////////////////////////////////////////////////////////////
+            // --- Dynamic wave simulations
+            if (ocean._lodDataDynWaves)
+            {
+                ocean._lodDataDynWaves.BuildCommandBuffer(ocean, _buf);
+            }
+
+            /////////////////////////////////////////////////////////////////////////////////////////////////////////////////
+            // --- Animated waves next
+            if (ocean._lodDataAnimWaves)
+            {
+                ocean._lodDataAnimWaves.BuildCommandBuffer(ocean, _buf);
+            }
+
+            /////////////////////////////////////////////////////////////////////////////////////////////////////////////////
+            // --- Foam simulation
+            if (ocean._lodDataFoam)
+            {
+                ocean._lodDataFoam.BuildCommandBuffer(ocean, _buf);
+            }
+#endif
         }
 
         /// <summary>
@@ -82,8 +129,22 @@ namespace Crest
 
             _buf.Clear();
 
-            Build(OceanRenderer.Instance, _buf);
+#if USE_ASYNC_COMPUTE
+            if (_bufAsync == null)
+            {
+                _bufAsync = new CommandBuffer();
+                _bufAsync.name = "CrestLodDataAsync";
+            }
 
+            _bufAsync.Clear();
+            _bufAsync.SetExecutionFlags(CommandBufferExecutionFlags.AsyncCompute);
+#endif
+
+            Build(OceanRenderer.Instance);
+
+#if USE_ASYNC_COMPUTE
+            Graphics.ExecuteCommandBufferAsync(_bufAsync, ComputeQueueType.Default);
+#endif
             // This will execute at the beginning of the frame before the graphics queue
             Graphics.ExecuteCommandBuffer(_buf);
 
