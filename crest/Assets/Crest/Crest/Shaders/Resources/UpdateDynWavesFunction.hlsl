@@ -69,7 +69,7 @@ half2 UpdateDynWavesFunction(
 	// eventually break. i model "Deep" water, but then simply ramp down waves in non-deep water with a linear multiplier.
 	// http://hyperphysics.phy-astr.gsu.edu/hbase/Waves/watwav2.html
 	// http://hyperphysics.phy-astr.gsu.edu/hbase/watwav.html#c1
-	float waterSignedDepth = CREST_OCEAN_DEPTH_BASELINE - tex2Dlod(_LD_Sampler_SeaFloorDepth_1, float4(input_uv, 0, 0)).x;
+	float waterSignedDepth = tex2Dlod(_LD_Sampler_SeaFloorDepth_1, float4(input_uv, 0, 0)).x;
 	float depthMul = 1.0 - (1.0 - saturate(2.0 * waterSignedDepth / wavelength)) * dt * 2.0;
 	ftp *= depthMul;
 	ft *= depthMul;

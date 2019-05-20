@@ -13,7 +13,7 @@ half4 AnimWavesGerstnerBatchFunction(
 	const half4 oneMinusAttenuation = (half4)1.0 - (half4)_AttenuationInShallows;
 
 	// sample ocean depth (this render target should 1:1 match depth texture, so UVs are trivial)
-	const half depth = CREST_OCEAN_DEPTH_BASELINE - tex2Dlod(_LD_Sampler_SeaFloorDepth_0, uv).x;
+	const half depth = tex2Dlod(_LD_Sampler_SeaFloorDepth_0, uv).x;
 	half3 result = (half3)0.0;
 
 	// gerstner computation is vectorized - processes 4 wave components at once
