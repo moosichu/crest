@@ -34,8 +34,10 @@ namespace Crest
                 if (Enabled && weight > 0f)
                 {
                     PropertyWrapperCompute property = GetProperty(isTransition);
+                    // TODO(WP): Initialise property wrapper properly
                     property.SetFloat(RegisterLodDataInputBase.sp_Weight, weight);
                     // TODO(WP): dispatch on property wrapper
+                    //property.DispatchShader();
                 }
             }
         }
@@ -44,16 +46,9 @@ namespace Crest
 
 
         static int sp_TODO = Shader.PropertyToID("_TODO"); // TODO(WP)
-        private const string ShaderName = "TODO"; // TODO(WP)
-        private ComputeShader _waveShader; // TODO(WP)
-
-
-        enum CmdBufStatus
-        {
-            NoStatus,
-            NotAttached,
-            Attached
-        }
+        private const string ShaderName = "SplatWaveParticles";
+        private ComputeShader _waveShader;
+        private int _waveKernel = -1;
 
         void Start()
         {
@@ -77,6 +72,7 @@ namespace Crest
                 InitBatches();
             }
         }
+
         void InitBatches()
         {
             if (_waveShader == null)
@@ -87,6 +83,7 @@ namespace Crest
                 {
                     return;
                 }
+                _waveKernel = _waveShader.FindKernel(ShaderName);
             }
 
             _waveParticleBatches = new WaveParticles[LodDataMgr.MAX_LOD_COUNT];
@@ -104,7 +101,8 @@ namespace Crest
             {
                 var property = batch.GetProperty(i);
                 // TODO(WP): Bind properties properly
-                property.SetFloat(OceanRenderer.sp_LD_SliceIndex, lodIdx - i);
+                // TODO(WP): work out how this is gonna work with compute shaders (we need cmdbuff access).
+                property.SetFloat(OceanRenderer.sp_LD_SliceIndex, lodIdx);
                 OceanRenderer.Instance._lodDataAnimWaves.BindResultData(property);
 
                 if (OceanRenderer.Instance._lodDataSeaDepths)
