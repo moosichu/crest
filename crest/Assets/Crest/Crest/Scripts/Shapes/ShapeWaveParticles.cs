@@ -11,21 +11,18 @@ namespace Crest
     {
         public class WaveParticles : ILodDataInput
         {
-            public WaveParticles()
+            private int _lodIdx;
+            private ComputeShader _waveShader;
+            private int _waveKernel;
+            public WaveParticles(int lodIdx, ComputeShader waveShader, int waveKernel)
             {
-                _properties = new PropertyWrapperCompute[]
-                {
-                    new PropertyWrapperCompute(),
-                    new PropertyWrapperCompute()
-                };
+                _properties = new PropertyWrapperCompute();
+                _lodIdx = lodIdx;
+                _waveShader = waveShader;
+                _waveKernel = waveKernel;
             }
 
-            public PropertyWrapperCompute GetProperty(int isTransition) => _properties[isTransition];
-
-            // Two materials because as batch may be rendered twice if it has large wavelengths that are being transitioned back
-            // and forth across the last 2 lods.
-            PropertyWrapperCompute[] _properties;
-
+            private PropertyWrapperCompute _properties;
             public float Wavelength { get; set; }
             public bool Enabled { get; set; }
 
@@ -33,11 +30,13 @@ namespace Crest
             {
                 if (Enabled && weight > 0f)
                 {
-                    PropertyWrapperCompute property = GetProperty(isTransition);
-                    // TODO(WP): Initialise property wrapper properly
-                    property.SetFloat(RegisterLodDataInputBase.sp_Weight, weight);
-                    // TODO(WP): dispatch on property wrapper
-                    //property.DispatchShader();
+                    _properties.Initialise(buf, _waveShader, _waveKernel);
+                    _properties.SetFloat(OceanRenderer.sp_LD_SliceIndex, _lodIdx - isTransition);
+                    if (OceanRenderer.Instance._lodDataSeaDepths)
+                    {
+                        OceanRenderer.Instance._lodDataSeaDepths.BindResultData(_properties, false);
+                    }
+                    _properties.DispatchShader();
                 }
             }
         }
@@ -86,30 +85,18 @@ namespace Crest
                 _waveKernel = _waveShader.FindKernel(ShaderName);
             }
 
+            // TODO(WP): Use ocean count?
             _waveParticleBatches = new WaveParticles[LodDataMgr.MAX_LOD_COUNT];
             for (int i = 0; i < _waveParticleBatches.Length; i++)
             {
-                _waveParticleBatches[i] = new WaveParticles();
+                _waveParticleBatches[i] = new WaveParticles(i, _waveShader, _waveKernel);
             }
         }
 
         void UpdateBatch(int lodIdx, int firstComponent, int lastComponentNonInc, WaveParticles batch)
         {
             batch.Enabled = false;
-            // apply the data to the shape property
-            for (int i = 0; i < 2; i++)
-            {
-                var property = batch.GetProperty(i);
-                // TODO(WP): Bind properties properly
-                // TODO(WP): work out how this is gonna work with compute shaders (we need cmdbuff access).
-                property.SetFloat(OceanRenderer.sp_LD_SliceIndex, lodIdx);
-                OceanRenderer.Instance._lodDataAnimWaves.BindResultData(property);
-
-                if (OceanRenderer.Instance._lodDataSeaDepths)
-                {
-                    OceanRenderer.Instance._lodDataSeaDepths.BindResultData(property, false);
-                }
-            }
+            // TODO(WP): work out what we need to check with the batch
             batch.Enabled = true;
         }
 
