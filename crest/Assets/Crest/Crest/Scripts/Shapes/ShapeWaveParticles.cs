@@ -20,11 +20,14 @@ namespace Crest
                 _lodIdx = lodIdx;
                 _waveShader = waveShader;
                 _waveKernel = waveKernel;
+                Enabled = true;
             }
 
             private PropertyWrapperCompute _properties;
             public float Wavelength { get; set; }
             public bool Enabled { get; set; }
+
+            public ShaderType Type => ShaderType.Compute;
 
             public void Draw(CommandBuffer buf, float weight, int isTransition)
             {
@@ -46,8 +49,9 @@ namespace Crest
 
         static int sp_TODO = Shader.PropertyToID("_TODO"); // TODO(WP)
         private const string ShaderName = "SplatWaveParticles";
-        private ComputeShader _waveShader;
-        private int _waveKernel = -1;
+        // TODO(WP): Make this not static, this is a HACK!
+        public static ComputeShader _waveShader;
+        public static int _waveKernel = -1;
 
         void Start()
         {
@@ -91,13 +95,6 @@ namespace Crest
             {
                 _waveParticleBatches[i] = new WaveParticles(i, _waveShader, _waveKernel);
             }
-        }
-
-        void UpdateBatch(int lodIdx, int firstComponent, int lastComponentNonInc, WaveParticles batch)
-        {
-            batch.Enabled = false;
-            // TODO(WP): work out what we need to check with the batch
-            batch.Enabled = true;
         }
 
         void OnEnable()

@@ -89,6 +89,7 @@ namespace Crest
             _waveBuffers.name = "WaveBuffer";
             _waveBuffers.dimension = TextureDimension.Tex2DArray;
             _waveBuffers.volumeDepth = OceanRenderer.Instance.CurrentLodCount;
+            _waveBuffers.enableRandomWrite = true;
             _waveBuffers.Create();
         }
 
@@ -164,8 +165,11 @@ namespace Crest
 
             for (int lodIdx = lodCount - 1; lodIdx >= 0; lodIdx--)
             {
+                // TODO(WP): Work out how to handle compute shaders differently
                 buf.SetRenderTarget(_waveBuffers, 0, CubemapFace.Unknown, lodIdx);
                 buf.ClearRenderTarget(false, true, new Color(0f, 0f, 0f, 0f));
+                // TODO(WP): Make this not use static thingsstatic, this is a HACK!
+                buf.SetComputeTextureParam(ShapeWaveParticles._waveShader, ShapeWaveParticles._waveKernel, TextureArrayHelpers.sp_LD_TexArray_Target, _waveBuffers);
 
                 // draw any data with lod preference
                 _filterWavelength._lodIdx = lodIdx;
@@ -173,6 +177,7 @@ namespace Crest
                 _filterWavelength._lodMinWavelength = _filterWavelength._lodMaxWavelength / 2f;
                 _filterWavelength._globalMaxWavelength = OceanRenderer.Instance._lodTransform.MaxWavelength(OceanRenderer.Instance.CurrentLodCount - 1);
                 SubmitDrawsFiltered(lodIdx, buf, _filterWavelength);
+
             }
 
             int combineShaderKernel = krnl_ShapeCombine;

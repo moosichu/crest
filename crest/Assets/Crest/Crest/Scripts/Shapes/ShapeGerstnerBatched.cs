@@ -42,6 +42,8 @@ namespace Crest
             public float Wavelength { get; set; }
             public bool Enabled { get; set; }
 
+            public ShaderType Type => ShaderType.Render;
+
             public void Draw(CommandBuffer buf, float weight, int isTransition)
             {
                 if (Enabled && weight > 0f)

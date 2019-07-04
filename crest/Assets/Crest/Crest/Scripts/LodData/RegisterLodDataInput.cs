@@ -7,11 +7,19 @@ using UnityEngine.Rendering;
 
 namespace Crest
 {
+    public enum ShaderType
+    {
+        Compute,
+        Render
+    }
     public interface ILodDataInput
     {
         void Draw(CommandBuffer buf, float weight, int isTransition);
         float Wavelength { get; }
         bool Enabled { get; }
+        // TODO(WP): Make this more SOA like so that this data isn't stored with
+        // each input, and so that we can iterate over seperate lists
+        ShaderType Type { get; }
     }
 
     /// <summary>
@@ -23,6 +31,8 @@ namespace Crest
 
         public bool Enabled => true;
 
+        public ShaderType Type => ShaderType.Render;
+
         public static int sp_Weight = Shader.PropertyToID("_Weight");
 
         Renderer _renderer;
@@ -32,7 +42,7 @@ namespace Crest
         {
             _renderer = GetComponent<Renderer>();
 
-            if(_renderer)
+            if (_renderer)
             {
                 _materials[0] = _renderer.sharedMaterial;
                 _materials[1] = new Material(_renderer.sharedMaterial);
@@ -44,7 +54,7 @@ namespace Crest
             if (_renderer && weight > 0f)
             {
                 _materials[isTransition].SetFloat(sp_Weight, weight);
-                
+
                 buf.DrawRenderer(_renderer, _materials[isTransition]);
             }
         }

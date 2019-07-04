@@ -11,7 +11,7 @@ namespace Crest
         private const string ClearToBlackShaderName = "ClearToBlack";
         private static int krnl_ClearToBlack = -1;
         private static ComputeShader ClearToBlackShader;
-        private static int sp_LD_TexArray_Target = Shader.PropertyToID("_LD_TexArray_Target");
+        public static int sp_LD_TexArray_Target = Shader.PropertyToID("_LD_TexArray_Target");
 
         static TextureArrayHelpers()
         {
