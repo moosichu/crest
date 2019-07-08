@@ -41,9 +41,10 @@ namespace Crest
             // horizonHeight = tanCameraRotation / Mathf.Tan(Mathf.Deg2Rad * fieldOfView);
             // horizonHeight = (horizonHeight * -2.0f) + 0.5f;
 
-            float cameraRotation = Mathf.Atan2(-1.0f * cameraForward.y, cameraForward.x);
+            float cameraRotation = Mathf.Atan2(-1.0f * cameraForward.y, (new Vector2(cameraForward.x, cameraForward.z)).magnitude);
 
             float halfProp = Mathf.Tan(cameraRotation * 0.5f) / Mathf.Tan(fieldOfView * Mathf.Deg2Rad * 0.5f);
+
             horizonHeight = halfProp + 0.5f;
 
             // Matrix4x4 cameraMatrix = _mainCamera.projectionMatrix * _mainCamera.worldToCameraMatrix;
