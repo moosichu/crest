@@ -199,9 +199,10 @@ Shader "Crest/Underwater Curtain"
 					ApplyCaustics(view, lightDir, sceneZ, _Normals, true, sceneColour);
 				}
 #endif // _CAUSTICS_ON
-
-				half3 col = lerp(sceneColour, scatterCol, 1.0 - exp(-_DepthFogDensity.xyz * sceneZ));
-
+				half3 col = lerp(sceneColour, scatterCol, 1. - exp(-_DepthFogDensity.xyz * sceneZ));
+#if _CAUSTICS_ON
+				ApplyGodRays(view, lightDir, sceneZ, _Normals, true, col);
+#endif // _CAUSTICS_ON
 				return half4(col, 1.0);
 			}
 			ENDCG

@@ -182,6 +182,80 @@ void ApplyCaustics(in const half3 i_view, in const half3 i_lightDir, in const fl
 }
 #endif // _CAUSTICS_ON
 
+#if _CAUSTICS_ON
+void ApplyGodRays(in const half3 i_view, in const half3 i_lightDir, in const float i_sceneZ, in sampler2D i_normals, in const bool i_underwater, inout half3 io_sceneColour)
+{
+	const uint numSamples = 48;
+	// Sampling a high mip gives a nice, soft effect whilst reducing artifacts caused by sample distance
+	const float mipLod = 6;
+	float sampleDistance = .15;
+	float totalSampleDistance = 1;
+	float3 camForward = mul((float3x3)unity_CameraToWorld, float3(0., 0., 1.));
+	for(uint currentSample = 0; currentSample < numSamples; currentSample++)
+	{
+		float3 samplePos = _WorldSpaceCameraPos + (-i_view * totalSampleDistance);
+		const float3 samplePosUV = WorldToUV_BiggerLod(samplePos.xz);
+
+		half3 disp = 0.;
+		half sss = 0.;
+		SampleDisplacements(_LD_TexArray_AnimatedWaves, samplePosUV, 1.0, disp, sss);
+		const half waterHeightAboveSample = _OceanCenterPosWorld.y + disp.y;
+		if(samplePos.y < waterHeightAboveSample) {
+
+			const float2 surfacePosXZ = float2(samplePos.x, samplePos.z) - (i_lightDir * dot(i_lightDir, _OceanCenterPosWorld.y - samplePos.y)).xz;
+			const float3 surfacePosUV = WorldToUV_BiggerLod(samplePos.xz);
+			SampleDisplacements(_LD_TexArray_AnimatedWaves, surfacePosUV, 1.0, disp, sss);
+			const half waterHeightAtPointRayEntersOcean = _OceanCenterPosWorld.y + disp.y;
+
+			half rayTravelDistanceInWater = waterHeightAtPointRayEntersOcean - samplePos.y;
+			if (rayTravelDistanceInWater < 0) { rayTravelDistanceInWater = 0; }
+
+			const half2 causticN = _CausticsDistortionStrength * UnpackNormal(tex2D(i_normals, surfacePosXZ / _CausticsDistortionScale)).xy;
+			const half4 cuv1 = half4((surfacePosXZ / _CausticsTextureScale + 1.3 * causticN + half2(0.044*_CrestTime + 17.16, -0.169*_CrestTime)), 0., mipLod);
+			const half4 cuv2 = half4((1.37*surfacePosXZ / _CausticsTextureScale + 1.77 * causticN + half2(0.248*_CrestTime, 0.117*_CrestTime)), 0., mipLod);
+
+			half causticsStrength = _CausticsStrength;
+			#if _SHADOWS_ON
+			{
+				fixed2 causticShadow = 0.;
+				// As per the comment for the underwater code in ScatterColour,
+				// LOD_1 data can be missing when underwater
+				if(i_underwater)
+				{
+					const float3 uv_smallerLod = WorldToUV(surfacePosXZ);
+					SampleShadow(_LD_TexArray_Shadow, uv_smallerLod, 1.0, causticShadow);
+				}
+				else
+				{
+					// only sample the bigger lod. if pops are noticeable this could lerp the 2 lods smoothly, but i didnt notice issues.
+					float3 uv_biggerLod = WorldToUV_BiggerLod(surfacePosXZ);
+					SampleShadow(_LD_TexArray_Shadow, uv_biggerLod, 1.0, causticShadow);
+				}
+				causticsStrength *= 1. - causticShadow.y;
+
+				// Don't draw caustics behind the scene
+				if (totalSampleDistance > (i_sceneZ / dot(-camForward, i_view))) causticsStrength = 0;
+			}
+			#endif // _SHADOWS_ON
+
+			causticsStrength *=
+				0.2 *
+				(
+					exp(-_DepthFogDensity * (totalSampleDistance + sampleDistance) * DEPTH_OUTSCATTER_CONSTANT)
+					- exp(-_DepthFogDensity * (totalSampleDistance) * DEPTH_OUTSCATTER_CONSTANT)
+				) /
+				(-_DepthFogDensity * DEPTH_OUTSCATTER_CONSTANT * (rayTravelDistanceInWater + 1));
+
+			io_sceneColour += causticsStrength *
+				(0.5*tex2Dlod(_CausticsTexture, cuv1).x + 0.5*tex2Dlod(_CausticsTexture, cuv2).x - _CausticsTextureAverage);
+
+		}
+		totalSampleDistance += sampleDistance;
+		sampleDistance *= 1.01;
+	}
+}
+#endif // _CAUSTICS_ON
+
 
 half3 OceanEmission(in const half3 i_view, in const half3 i_n_pixel, in const float3 i_lightDir,
 	in const half4 i_grabPos, in const float i_pixelZ, in const half2 i_uvDepth, in const float i_sceneZ, in const float i_sceneZ01,
@@ -240,7 +314,6 @@ half3 OceanEmission(in const half3 i_view, in const half3 i_n_pixel, in const fl
 
 	// blend from water colour to the scene colour
 	col = lerp(sceneColour, col, alpha);
-
 #endif // _TRANSPARENCY_ON
 
 	return col;

@@ -476,6 +476,11 @@ Shader "Crest/Ocean"
 				{
 					// underwater - do depth fog
 					col = lerp(col, scatterCol, 1. - exp(-_DepthFogDensity.xyz * pixelZ));
+
+					// underwater - apply god rays
+					#if _CAUSTICS_ON
+						ApplyGodRays(view, lightDir, sceneZ, _Normals, true, col);
+					#endif
 				}
 
 				#if _DEBUGVISUALISESHAPESAMPLE_ON
