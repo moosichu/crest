@@ -18,7 +18,7 @@
 			#include "UnityCG.cginc"
 
 			float _HorizonHeight;
-			float _HorizonOrientation;
+			float _HorizonRoll;
 
 			struct appdata
 			{
@@ -46,7 +46,7 @@
 			{
 				fixed4 col = tex2D(_MainTex, i.uv);
 				if(i.uv.y < _HorizonHeight) {
-					col.rgb = fixed3(0.0, 0.0, 1.0);
+					col.rgb -= fixed3(0.5, 0.5, 0.5);
 				}
 				return col;
 			}
