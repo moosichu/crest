@@ -2,6 +2,7 @@
 
 // This file is subject to the MIT License as seen in the root of this folder structure (LICENSE)
 
+using System;
 using UnityEngine;
 using UnityEngine.Rendering;
 
@@ -54,7 +55,17 @@ namespace Crest
 
             _renderProperties = new PropertyWrapperCompute();
             _updateShadowShader = Resources.Load<ComputeShader>(UpdateShadow);
-            krnl_UpdateShadow = _updateShadowShader.FindKernel(UpdateShadow);
+
+            try
+            {
+                krnl_UpdateShadow = _updateShadowShader.FindKernel(UpdateShadow);
+            }
+            catch(Exception)
+            {
+                Debug.LogError("Could not load shadow update kernel. Disabling shadows.", this);
+                enabled = false;
+                return;
+            }
 
             _cameraMain = Camera.main;
             if (_cameraMain == null)
@@ -119,6 +130,11 @@ namespace Crest
 
         public override void UpdateLodData()
         {
+            if (!enabled)
+            {
+                return;
+            }
+
             base.UpdateLodData();
 
             if (_mainLight != OceanRenderer.Instance._primaryLight)
@@ -186,7 +202,8 @@ namespace Crest
 
                 lt._renderData[lodIdx].Validate(0, this);
                 _renderProperties.SetVector(sp_CenterPos, lt._renderData[lodIdx]._posSnapped);
-                _renderProperties.SetVector(sp_Scale, lt.GetLodTransform(lodIdx).lossyScale);
+                var scale = OceanRenderer.Instance.CalcLodScale(lodIdx);
+                _renderProperties.SetVector(sp_Scale, new Vector3(scale, 1f, scale));
                 _renderProperties.SetVector(sp_CamPos, OceanRenderer.Instance.Viewpoint.position);
                 _renderProperties.SetVector(sp_CamForward, OceanRenderer.Instance.Viewpoint.forward);
                 _renderProperties.SetVector(sp_JitterDiameters_CurrentFrameWeights, new Vector4(Settings._jitterDiameterSoft, Settings._jitterDiameterHard, Settings._currentFrameWeightSoft, Settings._currentFrameWeightHard));
