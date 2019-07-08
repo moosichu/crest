@@ -17,6 +17,9 @@
 
 			#include "UnityCG.cginc"
 
+			float _HorizonHeight;
+			float _HorizonOrientation;
+
 			struct appdata
 			{
 				float4 vertex : POSITION;
@@ -42,7 +45,7 @@
 			fixed4 frag (v2f i) : SV_Target
 			{
 				fixed4 col = tex2D(_MainTex, i.uv);
-				if(i.uv.y < 0.5) {
+				if(i.uv.y < _HorizonHeight) {
 					col.rgb = fixed3(0.0, 0.0, 1.0);
 				}
 				return col;
