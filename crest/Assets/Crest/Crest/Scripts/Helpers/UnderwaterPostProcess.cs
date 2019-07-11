@@ -21,7 +21,11 @@ namespace Crest
         {
             if (_mainCamera == null)
             {
-                _mainCamera = Camera.main;
+                _mainCamera = GetComponent<Camera>();
+                if (_mainCamera == null)
+                {
+                    _mainCamera = Camera.main;
+                }
             }
 
             float horizonHeight = 0.3f;
