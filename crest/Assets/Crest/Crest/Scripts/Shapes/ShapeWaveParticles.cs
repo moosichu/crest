@@ -95,26 +95,27 @@ namespace Crest
             {
                 _waveParticleBatches[i] = new WaveParticles(i, _waveShader, _waveKernel);
             }
-        }
 
-        void OnEnable()
-        {
-            if (_waveParticleBatches == null)
-            {
-                InitBatches();
-            }
-
+            var registered = RegisterLodDataInputBase.GetRegistrar(typeof(LodDataMgrAnimWaves));
             foreach (var batch in _waveParticleBatches)
             {
-                OceanRenderer.Instance._lodDataAnimWaves.AddDraw(batch);
+                registered.Add(batch);
             }
         }
 
         void OnDisable()
         {
-            foreach (var batch in _waveParticleBatches)
+            if (OceanRenderer.Instance != null && _waveParticleBatches != null)
             {
-                OceanRenderer.Instance._lodDataAnimWaves.RemoveDraw(batch);
+                {
+                    var registered = RegisterLodDataInputBase.GetRegistrar(typeof(LodDataMgrAnimWaves));
+                    foreach (var batch in _waveParticleBatches)
+                    {
+                        registered.Remove(batch);
+                    }
+
+                    _waveParticleBatches = null;
+                }
             }
         }
 
