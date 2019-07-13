@@ -174,6 +174,13 @@ Shader "Crest/Ocean"
 
 		Pass
 		{
+			Stencil {
+				Ref 2
+				Comp always
+				Pass replace
+				ZFail replace
+			}
+
 			// Culling user defined - can be inverted for under water
 			Cull [_CullMode]
 
