@@ -2,6 +2,7 @@
 
 // This file is subject to the MIT License as seen in the root of this folder structure (LICENSE)
 
+using System.Collections.Generic;
 using UnityEngine;
 using UnityEngine.Rendering;
 
@@ -34,6 +35,19 @@ namespace Crest
         public ShaderType Type => ShaderType.Render;
 
         public static int sp_Weight = Shader.PropertyToID("_Weight");
+
+        static Dictionary<System.Type, List<ILodDataInput>> _registrar = new Dictionary<System.Type, List<ILodDataInput>>();
+
+        public static List<ILodDataInput> GetRegistrar(System.Type lodDataMgrType)
+        {
+            List<ILodDataInput> registered;
+            if (!_registrar.TryGetValue(lodDataMgrType, out registered))
+            {
+                registered = new List<ILodDataInput>();
+                _registrar.Add(lodDataMgrType, registered);
+            }
+            return registered;
+        }
 
         Renderer _renderer;
         Material[] _materials = new Material[2];
@@ -70,34 +84,25 @@ namespace Crest
 
         protected virtual void OnEnable()
         {
-            var rend = GetComponent<Renderer>();
-            var ocean = OceanRenderer.Instance;
-            if (rend && ocean)
+            if (_disableRenderer)
             {
-                if (_disableRenderer)
+                var rend = GetComponent<Renderer>();
+                if (rend)
                 {
                     rend.enabled = false;
                 }
-
-                var ld = ocean.GetComponent<LodDataType>();
-                if (ld)
-                {
-                    ld.AddDraw(this);
-                }
             }
+
+            var registrar = GetRegistrar(typeof(LodDataType));
+            registrar.Add(this);
         }
 
         protected virtual void OnDisable()
         {
-            var rend = GetComponent<Renderer>();
-            var ocean = OceanRenderer.Instance;
-            if (rend && ocean)
+            var registered = GetRegistrar(typeof(LodDataType));
+            if (registered != null)
             {
-                var ld = ocean.GetComponent<LodDataType>();
-                if (ld)
-                {
-                    ld.RemoveDraw(this);
-                }
+                registered.Remove(this);
             }
         }
     }
