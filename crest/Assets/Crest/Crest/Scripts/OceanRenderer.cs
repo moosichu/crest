@@ -39,6 +39,10 @@ namespace Crest
         float _gravityMultiplier = 1f;
         public float Gravity { get { return _gravityMultiplier * Physics.gravity.magnitude; } }
 
+        // TODO: REMOVE HACKY HACKINS
+        public RenderTexture HACK_DefaultTarget = null;
+        public RenderTexture HACK_MaskToTransfer = null;
+
 
         [Header("Detail Params")]
 

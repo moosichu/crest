@@ -1,28 +1,21 @@
 ﻿Shader "Crest/Underwater Post Process"
 {
-	Properties
-	{
-		_MainTex ("Texture", 2D) = "white" {}
-	}
 	SubShader
 	{
 		// No culling or depth
 		Cull Off ZWrite Off ZTest Always
-		// We need to render exactly after the ocean does
-		Tags { "Queue"="Geometry+511" }
 
 		Pass
 		{
-			Stencil {
-				Ref 2
-				Comp Equal
-			}
-
 			CGPROGRAM
 			#pragma vertex vert
 			#pragma fragment frag
 
 			#include "UnityCG.cginc"
+
+
+			float _HorizonHeight;
+			float _HorizonRoll;
 
 			struct appdata
 			{
@@ -45,11 +38,18 @@
 			}
 
 			sampler2D _MainTex;
+			sampler2D _MaskTex;
 
 			fixed4 frag (v2f i) : SV_Target
 			{
 				fixed4 col = tex2D(_MainTex, i.uv);
-				col.rgb = fixed3(0.5, 0.5, 0.5);
+				int mask = tex2D(_MaskTex, i.uv);
+				// if(i.uv.y < _HorizonHeight)
+				// col.rgb += fixed3(0.5, 0.5, 0.5);
+				if(mask > 0)
+				{
+					// col.rgb -= fixed3(0.5, 0.5, 0.5);
+				}
 				return col;
 			}
 			ENDCG

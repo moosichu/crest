@@ -141,6 +141,8 @@ Shader "Crest/Ocean"
 		[Header(Underwater)]
 		// Whether the underwater effect is being used. This enables code that shades the surface correctly from underneath.
 		[Toggle] _Underwater("Enable", Float) = 0
+		// Whether the underwater effect is being used. This enables code that shades the surface correctly from underneath.
+		[Toggle] _Underwater_("Enable", Float) = 0
 		// Ordinarily set this to Back to cull back faces, but set to Off to make sure both sides of the surface draw if the
 		// underwater effect is being used.
 		[Enum(CullMode)] _CullMode("Cull Mode", Int) = 2
@@ -174,13 +176,6 @@ Shader "Crest/Ocean"
 
 		Pass
 		{
-			Stencil {
-				Ref 2
-				Comp always
-				Pass replace
-				ZFail replace
-			}
-
 			// Culling user defined - can be inverted for under water
 			Cull [_CullMode]
 
@@ -212,6 +207,7 @@ Shader "Crest/Ocean"
 			#pragma shader_feature _DEBUGVISUALISEFLOW_ON
 			#pragma shader_feature _DEBUGDISABLESMOOTHLOD_ON
 			#pragma shader_feature _COMPILESHADERWITHDEBUGINFO_ON
+			#pragma shader_feature _UNDERWATER2_ON
 
 			#if _COMPILESHADERWITHDEBUGINFO_ON
 			#pragma enable_d3d11_debug_symbols
@@ -240,6 +236,19 @@ Shader "Crest/Ocean"
 
 				UNITY_FOG_COORDS(3)
 			};
+
+			#if _UNDERWATER2_ON
+			struct FragOut
+			{
+				half4 col : SV_Target0;
+				int mask : SV_Target1;
+			};
+			#else
+			struct FragOut
+			{
+				half4 col : SV_Target;
+			};
+			#endif
 
 			#include "OceanHelpers.hlsl"
 
@@ -396,7 +405,7 @@ Shader "Crest/Ocean"
 				return backface || _ForceUnderwater > 0.0;
 			}
 
-			half4 Frag(const Varyings input, const float facing : VFACE) : SV_Target
+			FragOut Frag(const Varyings input, const float facing : VFACE) : SV_Target
 			{
 				const bool underwater = IsUnderwater(facing);
 				const float lodAlpha = input.lodAlpha_worldXZUndisplaced_oceanDepth.x;
@@ -494,7 +503,12 @@ Shader "Crest/Ocean"
 				#endif
 				#endif
 
-				return half4(col, 1.);
+				FragOut fragOut;
+				fragOut.col = half4(col, 1.);
+				#if _UNDERWATER2_ON
+				fragOut.mask = underwater + 1;
+				#endif
+				return fragOut;
 			}
 
 			ENDCG

@@ -39,6 +39,42 @@ namespace Crest
             UpdateMeshBounds();
         }
 
+        // TODO(PPU): SORT OUT
+        // private void OnRenderObject()
+        // {
+        //     // HACK
+        //     if (OceanRenderer.Instance.HACK_MaskToTransfer)
+        //     {
+
+        //         RenderTexture maskTexture = OceanRenderer.Instance.HACK_MaskToTransfer;
+        //         if (false)
+        //         {
+        //             Graphics.SetRandomWriteTarget(1, maskTexture);
+        //         }
+        //         else
+        //         {
+        //             // ALTERNATIVE
+        //             if (OceanRenderer.Instance.HACK_DefaultTarget == null)
+        //             {
+        //                 OceanRenderer.Instance.HACK_DefaultTarget = new RenderTexture(Screen.width, Screen.height, 24, RenderTextureFormat.ARGBFloat);
+        //                 OceanRenderer.Instance.HACK_DefaultTarget.Create();
+        //             }
+        //             RenderTexture defaultTarget = OceanRenderer.Instance.HACK_DefaultTarget;
+        //             // defaultTarget = Camera.main.targetTexture;
+
+        //             // Graphics.SetRenderTarget(new RenderBuffer[] {
+        //             //     defaultTarget.colorBuffer, maskTexture.colorBuffer
+        //             // }, defaultTarget.depthBuffer);
+        //             Debug.Log(Graphics.activeColorBuffer);
+        //             // _currentCamera.SetTargetBuffers(new RenderBuffer[] {
+        //             //     Graphics.activeColorBuffer, maskTexture.colorBuffer
+        //             // }, Graphics.activeDepthBuffer);
+        //         }
+        //     }
+        //     // _rend.material.SetPass(0);
+        //     // Graphics.DrawMeshNow(_mesh, transform.position, transform.rotation);
+        // }
+
         private void Update()
         {
             // This needs to be called on Update because the bounds depend on transform scale which can change. Also OnWillRenderObject depends on
@@ -127,7 +163,7 @@ namespace Crest
             if (ldflow) ldflow.BindResultData(_mpb);
             if (ldfoam) ldfoam.BindResultData(_mpb); else LodDataMgrFoam.BindNull(_mpb);
             if (ldsds) ldsds.BindResultData(_mpb);
-            if (ldshadows) ldshadows.BindResultData(_mpb); else LodDataMgrShadow.BindNull( _mpb);
+            if (ldshadows) ldshadows.BindResultData(_mpb); else LodDataMgrShadow.BindNull(_mpb);
 
             var reflTex = PreparedReflections.GetRenderTexture(_currentCamera.GetInstanceID());
             if (reflTex)

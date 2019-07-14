@@ -5,14 +5,13 @@ using UnityEngine;
 namespace Crest
 {
 
+    [RequireComponent(typeof(Camera))]
     public class UnderwaterPostProcess : MonoBehaviour
     {
         public Material _underWaterPostProcMat;
-        public Material _underWaterHorizonMarker;
-        public GameObject _horizonStenciller;
-        public GameObject _postProcesser;
 
         private Camera _mainCamera;
+        RenderTexture _textureMask;
         static int sp_HorizonHeight = Shader.PropertyToID("_HorizonHeight");
         static int sp_HorizonOrientation = Shader.PropertyToID("_HorizonOrientation");
 
@@ -21,24 +20,16 @@ namespace Crest
         {
             // hack - push forward so the geometry wont be frustum culled. there might be better ways to draw
             // this stuff.
-            _mainCamera = transform.parent.GetComponent<Camera>();
+            _mainCamera = GetComponent<Camera>();
             if (_mainCamera == null)
             {
-                Debug.LogError("Underwater effects expect to be parented to a camera.", this);
+                Debug.LogError("Underwater effects expect to be attached to a camera", this);
                 enabled = false;
 
                 return;
             }
-            transform.localPosition = Vector3.forward;
 
-            {
-                MeshRenderer _meshRenderer = _postProcesser.GetComponent<MeshRenderer>();
-                _meshRenderer.material = _underWaterPostProcMat;
-            }
-            {
-                MeshRenderer _meshRenderer = _horizonStenciller.GetComponent<MeshRenderer>();
-                _meshRenderer.material = _underWaterHorizonMarker;
-            }
+            OceanRenderer.Instance.OceanMaterial.EnableKeyword("_UNDERWATER2_ON");
         }
 
         void Update()
@@ -46,9 +37,25 @@ namespace Crest
             // TODO: Make front facing quad occupy camera frustrum
 
             // TODO: Make the horizon marker fill up half the screen
+        }
+
+        void OnRenderImage(RenderTexture source, RenderTexture target)
+        {
+            if (_textureMask == null)
             {
-                float horizonHeight = 0.3f;
+                _textureMask = new RenderTexture(source);
+                _textureMask.format = RenderTextureFormat.R8;
+                _textureMask.enableRandomWrite = true;
+                _textureMask.Create();
+                OceanRenderer.Instance.HACK_MaskToTransfer = _textureMask;
+
+                // _mainCamera.SetTargetBuffers(new RenderBuffer[] {
+                //     Graphics.activeColorBuffer, _textureMask.colorBuffer
+                // }, Graphics.activeDepthBuffer);
+            }
+            {
                 float horizonRoll = 0.0f;
+                float horizonHeight = 0.3f;
 
                 // Transform oceanTransform = OceanRenderer.Instance.transform;
 
@@ -61,14 +68,11 @@ namespace Crest
                 float halfProp = Mathf.Tan(cameraRotation * 0.5f) / Mathf.Tan(halfFov * Mathf.Deg2Rad);
                 horizonHeight = halfProp + 0.5f;
 
-                _underWaterHorizonMarker.SetFloat(sp_HorizonHeight, horizonHeight);
-                _underWaterHorizonMarker.SetFloat(sp_HorizonOrientation, horizonRoll);
+                _underWaterPostProcMat.SetFloat(sp_HorizonHeight, horizonHeight);
+                _underWaterPostProcMat.SetFloat(sp_HorizonOrientation, horizonRoll);
+                _underWaterPostProcMat.SetTexture("_MaskTex", _textureMask);
             }
-        }
-
-        void OnRenderImage(RenderTexture source, RenderTexture target)
-        {
-
+            Graphics.Blit(source, target, _underWaterPostProcMat);
         }
     }
 
